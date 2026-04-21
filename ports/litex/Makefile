@@ -159,6 +159,21 @@ EXTMOD_SRC_C =
 CRT0_S ?= $(CPU_DIRECTORY)/crt0.S
 CRT0_O = $(BUILD)/software/libbase/crt0.o
 
+# Auto-generated CSR name -> address table consumed by modlitex.c. Built
+# from the SoC's csr.json at the same location as the rest of the generated
+# software headers.
+LITEX_CSR_TABLE_H = $(BUILD)/genhdr/litex_csr_table.h
+$(LITEX_CSR_TABLE_H): $(BUILD_DIRECTORY)/csr.json tools/gen_csr_table.py
+	$(ECHO) "GEN $@"
+	$(Q)mkdir -p $(dir $@)
+	$(Q)$(PYTHON) tools/gen_csr_table.py $< $@
+# Both modlitex.o and the QSTR extraction preprocess depend on the CSR
+# table header: modlitex.c #include's it at file scope, and the QSTR pass
+# preprocesses every source file, so the header must exist before that
+# runs.
+$(BUILD)/modlitex.o: $(LITEX_CSR_TABLE_H)
+$(BUILD)/genhdr/qstr.i.last: $(LITEX_CSR_TABLE_H)
+
 OBJ =  $(CRT0_O) $(addprefix $(BUILD)/, $(SRC_S:.S=.o)) $(PY_O) $(addprefix $(BUILD)/, $(SRC_C:.c=.o))
 OBJ += $(addprefix $(BUILD)/, $(DRIVERS_SRC_C:.c=.o))
 OBJ += $(addprefix $(BUILD)/, $(EXTMOD_SRC_C:.c=.o))
