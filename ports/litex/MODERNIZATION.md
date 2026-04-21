@@ -4,7 +4,9 @@ This document tracks the modernization of `ports/litex` against current upstream
 MicroPython, and the infrastructure (simulation feedback loop, CI) needed to
 sustain it.
 
-Work happens on the `litex-modernize` branch off `litex-rebase`.
+Work happens on the `litex-modernize` branch, which now tracks
+`upstream/master` (MicroPython 1.29). The pre-rebase state is kept on
+`litex-modernize-1.16` for anyone who needs a 1.16-based build.
 
 ## Starting point (2026-04)
 
@@ -132,15 +134,23 @@ One workflow, `.github/workflows/ports_litex.yml`, patterned after
 
 ### §4 — README + feature additions
 
-**README rewrite**: add sections for supported CPUs/boards/peripherals (as a
-table), simulation quickstart (before the hardware path), architecture note
-(CSR → `generated/csr.h` → `mp_hal_*` → Python), how to add a peripheral,
-frozen modules via `manifest.py`.
+**README**: the quickstart and sim section are in place. Full rewrite
+(supported CPUs/boards/peripherals as a table, architecture note
+CSR → `generated/csr.h` → `mp_hal_*` → Python, "how to add a peripheral"
+recipe, frozen modules via `manifest.py`) is deferred.
 
-**Feature additions**, rough priority order:
+**Shipped this round**:
+- [x] Extended the `litex` module with build metadata and MMIO helpers:
+      `litex.sys_clk_freq`, `litex.CSR_BASE`, `litex.MAIN_RAM_BASE/SIZE`,
+      `litex.ROM_BASE/SIZE`, `litex.git_sha1()`, `litex.bus_standard()`,
+      `litex.read32()/write32()`, `litex.info()`.
+- [x] Added `test/test_litex.py` to smoke-test the module.
+
+**Feature additions, still pending** (rough priority order):
+- `litex.CSR` — generic CSR read/write *by name* using
+  `generated/csr.json`; a natural extension of the MMIO helpers above.
+  Would likely pre-parse the JSON at build time into a C table.
 - `machine.UART` for extra LiteX UARTs beyond the REPL one.
-- `litex.CSR` — generic CSR read/write by name using `generated/csr.json`.
-  Extremely useful for bring-up and debugging.
 - `litex.EventManager` — expose IRQ sources as Python callbacks.
 - `machine.ADC` — LiteXADC / Xilinx XADC wrappers.
 - `framebuf` integration for Video, simple text console / primitives.
