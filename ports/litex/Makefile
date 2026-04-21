@@ -71,12 +71,25 @@ INC += -I$(SOC_DIRECTORY)/software/include
 INC += -I$(CPU_DIRECTORY)
 
 # Set LDFLAGS.
-LDFLAGS += -nostartfiles -T linker.ld -Wl,-Map=$@.map -Wl,--cref
+#
+# Follow the LiteX BIOS link recipe: link against the LiteX-built libraries
+# (picolibc, libcompiler_rt, libbase, and optional cores like liblitesdcard)
+# rather than the host toolchain's libc. Required because:
+#  - Host riscv64-unknown-elf toolchains often ship a 64-bit libc that cannot
+#    link against -march=rv32i objects ("ELFCLASS64 incompatible with
+#    ELFCLASS32").
+#  - LiteX integrates picolibc with CPU-appropriate multilib already.
+# $(LIBS) comes from $(BUILD_DIRECTORY)/software/include/generated/variables.mak
+# and is the space-separated list of LiteX libraries for this SoC
+# (e.g. "libc libcompiler_rt libbase libfatfs liblitespi ...").
+LITEX_LIB_DIRS = $(foreach lib,$(LIBS),-L$(BUILD_DIRECTORY)/software/$(lib))
+LITEX_LIB_LDFLAGS = $(LIBS:lib%=-l%)
+
+LDFLAGS += -nostdlib -nodefaultlibs
+LDFLAGS += -Wl,--no-dynamic-linker -Wl,--build-id=none
+LDFLAGS += -T linker.ld -Wl,-Map=$@.map -Wl,--cref
 LDFLAGS += -L$(BUILDINC_DIRECTORY)
 LDFLAGS += $(filter -march=% -mabi=%, $(CPUFLAGS)) # CPU specific.
-
-# Set Libraries.
-LIBS = -Wl,-lc -Wl,-lm
 
 # Set Sources.
 SRC_C = \
@@ -147,7 +160,10 @@ $(CRT0_O): $(CRT0_S)
 
 $(BUILD)/firmware.elf: $(OBJ)
 	$(ECHO) "LINK $@"
-	$(Q)$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
+	$(Q)$(CC) $(LDFLAGS) -o $@ $(OBJ) \
+		$(LITEX_LIB_DIRS) \
+		-Wl,--start-group $(LITEX_LIB_LDFLAGS) -Wl,--end-group \
+		-Wl,--gc-sections
 	$(Q)$(SIZE) $@
 
 $(BUILD)/firmware.bin: $(BUILD)/firmware.elf
