@@ -105,8 +105,17 @@ SRC_C = \
 SRC_LITEX = \
 	$(LIBBASE_DIRECTORY)/system.c \
 	$(LIBBASE_DIRECTORY)/uart.c \
+
+# SDCard sources are only needed when the SoC exposes an SDCore or SPISDCard
+# peripheral (i.e. MICROPY_VFS_FAT=1). Sim targets without --with-sdcard would
+# otherwise fail to find <libfatfs/ff.h> since libfatfs is only pulled in when
+# MICROPY_VFS_FAT is enabled.
+ifeq ($(MICROPY_VFS_FAT),1)
+SRC_LITEX += \
 	$(LIBLITESDCARD_DIRECTORY)/spisdcard.c \
 	$(LIBLITESDCARD_DIRECTORY)/sdcard.c \
+
+endif
 
 SRC_C += $(SRC_MOD)
 
