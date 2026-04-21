@@ -139,23 +139,37 @@ One workflow, `.github/workflows/ports_litex.yml`, patterned after
 CSR → `generated/csr.h` → `mp_hal_*` → Python, "how to add a peripheral"
 recipe, frozen modules via `manifest.py`) is deferred.
 
-**Shipped this round**:
+**Shipped across sessions**:
 - [x] Extended the `litex` module with build metadata and MMIO helpers:
       `litex.sys_clk_freq`, `litex.CSR_BASE`, `litex.MAIN_RAM_BASE/SIZE`,
       `litex.ROM_BASE/SIZE`, `litex.git_sha1()`, `litex.bus_standard()`,
       `litex.read32()/write32()`, `litex.info()`.
-- [x] Added `test/test_litex.py` to smoke-test the module.
+- [x] By-name CSR access: `litex.csr_read(name)`, `litex.csr_write(name, v)`,
+      `litex.csrs()`. Backed by a build-time-generated lookup table
+      (`tools/gen_csr_table.py`) populated from the SoC's `csr.json`.
+- [x] `litex.EventManager(prefix)` wrapping the
+      `<prefix>_ev_pending/_ev_enable/_ev_status` CSR trio
+      (polling-style; IRQ-dispatched callbacks are a follow-up).
+- [x] `machine.UART(id)` for secondary LiteX UARTs (primary stays with
+      REPL). Full MicroPython stream protocol (read / readline / write).
+      Polling for now; litex.EventManager integration is the next step.
+- [x] `machine.ADC` for the Xilinx XADC system monitor (temperature,
+      vccint, vccaux, vccbram). `read()` / `read_u16()`.
+- [x] `framebuf` integration for `litex.Video` — the Video type already
+      exposed the buffer protocol; this pass adds an example and doc.
+- [x] `test/test_litex.py` covers the new litex module API.
+- [x] Empty `manifest.py` stub so `FROZEN_MANIFEST` is ready when a
+      board-level variant wants to freeze .py modules.
 
 **Feature additions, still pending** (rough priority order):
-- `litex.CSR` — generic CSR read/write *by name* using
-  `generated/csr.json`; a natural extension of the MMIO helpers above.
-  Would likely pre-parse the JSON at build time into a C table.
-- `machine.UART` for extra LiteX UARTs beyond the REPL one.
-- `litex.EventManager` — expose IRQ sources as Python callbacks.
-- `machine.ADC` — LiteXADC / Xilinx XADC wrappers.
-- `framebuf` integration for Video, simple text console / primitives.
+- Wire `litex.EventManager` / `machine.UART` handlers into `isr()` so
+  IRQs dispatch via `mp_sched_schedule` to Python callbacks. Only
+  polling works today.
 - `litex.Ethernet` / `socket` over LiteEth (big — needs lwIP; later pass).
 - `litex.SATA`, `litex.PCIe` BAR access — niche but LiteX-differentiating.
+- Non-Xilinx ADC cores (LiteADC) — would benefit from a common base class.
+- `tools/codeformat.py` uncrustify pass — blocked on uncrustify 0.72
+  install; manual consistency check done for now.
 
 ## Working rules
 
