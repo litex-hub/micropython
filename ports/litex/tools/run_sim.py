@@ -46,8 +46,12 @@ PTY_APPEAR_TIMEOUT_S = 30
 # take several minutes. Be generous.
 RAW_REPL_STEP_TIMEOUT_S = 600
 TEST_EXEC_TIMEOUT_S = 600
-# Log marker printed by litex_sim right before it launches the Vsim binary.
-SIM_BUILD_DONE_MARKER = "make: Leaving directory '"
+# Log substring printed when the Verilator `make` recursion for the gateware
+# directory exits — the last build-time message before litex_sim launches the
+# Vsim binary. We look for "Leaving directory '<output_dir>/gateware'" so we
+# don't fire early on any of the software/lib* leaves. Matches "make:",
+# "make[1]:", etc. so it works at any recursion depth.
+SIM_BUILD_DONE_SUFFIX = "/gateware'"
 # REPL tokens we key off of.
 FRIENDLY_PROMPT = b">>> "
 RAW_REPL_BANNER = b"raw REPL; CTRL-B to exit\r\n>"
@@ -63,8 +67,8 @@ def wait_for_path(path, timeout):
     return False
 
 
-def wait_for_log_marker(log_path, marker, timeout):
-    """Tail a log file until a specific substring appears."""
+def wait_for_log_marker(log_path, marker_predicate, timeout):
+    """Tail a log file until a line matching the predicate appears."""
     deadline = time.monotonic() + timeout
     seen = ""
     while not os.path.exists(log_path) and time.monotonic() < deadline:
@@ -76,8 +80,9 @@ def wait_for_log_marker(log_path, marker, timeout):
             chunk = f.read()
             if chunk:
                 seen += chunk
-                if marker in seen:
-                    return True
+                for line in seen.splitlines():
+                    if marker_predicate(line):
+                        return True
             else:
                 time.sleep(0.5)
     return False
@@ -312,7 +317,13 @@ def main():
 
     print(f"[run_sim] waiting for Verilator build to finish (up to "
           f"{SIM_BUILD_TIMEOUT_S}s, see {args.log})", file=sys.stderr)
-    if not wait_for_log_marker(args.log, SIM_BUILD_DONE_MARKER, SIM_BUILD_TIMEOUT_S):
+
+    def gateware_make_exited(line):
+        # e.g. "make[1]: Leaving directory '/tmp/litex_mpy_sim/gateware'"
+        return "Leaving directory " in line and line.rstrip().endswith(
+            SIM_BUILD_DONE_SUFFIX)
+
+    if not wait_for_log_marker(args.log, gateware_make_exited, SIM_BUILD_TIMEOUT_S):
         sys.exit(f"timed out waiting for Verilator build (see {args.log})")
     print("[run_sim] Verilator build done, waiting for REPL", file=sys.stderr)
 
