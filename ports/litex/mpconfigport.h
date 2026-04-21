@@ -11,6 +11,15 @@
 #define MICROPY_ERROR_REPORTING     (MICROPY_ERROR_REPORTING_TERSE)
 #define MICROPY_LONGINT_IMPL        (MICROPY_LONGINT_IMPL_MPZ)
 #define MICROPY_FLOAT_IMPL          (MICROPY_FLOAT_IMPL_DOUBLE)
+// Don't use long double for float formatting: the RISC-V SoftABI emits tf*
+// helpers (__trunctfdf2, __addtf3, ...) that are neither in picolibc nor in
+// LiteX's libcompiler_rt, and linking host-toolchain libgcc is non-trivial
+// because '-march=rv32i2p0_m' does not resolve to a multilib on gcc <= 11.
+#define MICROPY_FLOAT_FORMAT_IMPL   (MICROPY_FLOAT_FORMAT_IMPL_APPROX)
+// Don't use _Float16 either: it pulls in __extendhfdf2/__truncsfhf2 which
+// are also absent from picolibc/libcompiler_rt. Fall back to MicroPython's
+// bit-manipulation half-float encoder/decoder.
+#define MICROPY_FLOAT_USE_NATIVE_FLT16 (0)
 
 // Python builtins, classes, modules, etc. features.
 #define MICROPY_PY_MATH             (1)
@@ -139,11 +148,9 @@ static inline void mp_hal_delay_us_fast(mp_uint_t us) { us*=4; volatile static u
 
 #ifdef CSR_TIMER0_BASE
 #define MICROPY_ENABLE_SCHEDULER                (1)
+#endif
 
-#define MICROPY_PORT_ROOT_POINTERS \
-    struct _machine_timer_obj_t *machine_timer_obj_head; \
-    const char *readline_hist[8];
-#else
-#define MICROPY_PORT_ROOT_POINTERS \
-    const char *readline_hist[8];
-#endif //CSR_TIMER0_BASE
+// Root pointers for GC tracing are declared via MP_REGISTER_ROOT_POINTER()
+// at the bottom of the file that owns the pointer (see machine_timer.c).
+// The readline history also moved to a shared/readline/readline-provided
+// root pointer, so the port no longer declares it here.
