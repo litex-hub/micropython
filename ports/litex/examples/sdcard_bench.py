@@ -4,10 +4,10 @@
 #
 # SPDX-License-Identifier: BSD-2-Clause
 
-import umachine
-import utime
+import machine
+import time
 
-sd = umachine.SDCard()
+sd = machine.SDCard()
 r = sd.readblocks(0, bytearray(512)) #do a reading for initializing
 assert(r)
 print(sd)
@@ -22,10 +22,10 @@ def sd_benchmark():
     block = iter*16384 #read different parts of memory
     for n in range(len(tims)):
       buf = bytearray(blocks[n]*512)
-      t0 = utime.ticks_us()
+      t0 = time.ticks_us()
       r = sd.readblocks(block, buf)
-      #r = True; utime.sleep_us(len(buf)//10) #synthetic test: 10MB/s
-      t = utime.ticks_diff(utime.ticks_us(), t0)
+      #r = True; time.sleep_us(len(buf)//10) #synthetic test: 10MB/s
+      t = time.ticks_diff(time.ticks_us(), t0)
       print("read block", block, len(buf), "bytes")
       if r:
         tims[n] += t
@@ -41,9 +41,9 @@ def sd_benchmark_seq():
     for iter in range(MAXITER):
       
       buf = bytearray(blocks[n]*512)
-      t0 = utime.ticks_us()
+      t0 = time.ticks_us()
       r = sd.readblocks(block, buf)
-      t = utime.ticks_diff(utime.ticks_us(), t0)
+      t = time.ticks_diff(time.ticks_us(), t0)
       print("read block", block, len(buf), "bytes")
       block += blocks[n]
       if r:

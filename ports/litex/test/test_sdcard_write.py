@@ -5,7 +5,7 @@
 #
 # SPDX-License-Identifier: BSD-2-Clause
 
-from umachine import SDCard
+from machine import SDCard
 sd = SDCard()
 "size " + str(sd.info()[0]/1e9) + " GB"
 

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-2-Clause
 
-from umachine import PWM
+from machine import PWM
 pwm = PWM(0)
 pwm.init(5, 10*1000*1000) #freq(Hz) = 5, duty(nanosec) = 10ms
 print(pwm)

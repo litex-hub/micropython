@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 import usys
-from umachine import Timer
+from machine import Timer
 
 n      = 0
 timer0 = Timer(0)

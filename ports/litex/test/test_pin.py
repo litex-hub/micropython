@@ -5,7 +5,7 @@
 #
 # SPDX-License-Identifier: BSD-2-Clause
 
-from umachine import Pin
+from machine import Pin
 
 # Create Pins.
 inp  = Pin(3, Pin.IN)
