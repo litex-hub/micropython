@@ -25,6 +25,9 @@ extern const mp_obj_type_t machine_timer_type;
 extern const mp_obj_type_t machine_uart_type;
 #define LITEX_HAS_SECONDARY_UART 1
 #endif
+#ifdef CSR_XADC_TEMPERATURE_ADDR
+extern const mp_obj_type_t machine_adc_type;
+#endif
 #ifdef CSR_LEDS_PWM_ENABLE_ADDR
 extern const mp_obj_type_t machine_pwm_type;
 #endif
@@ -84,6 +87,13 @@ static MP_DEFINE_CONST_FUN_OBJ_0(machine_freq_obj, machine_freq);
 #define MACHINE_UART_ENTRY
 #endif
 
+#ifdef CSR_XADC_TEMPERATURE_ADDR
+#define MACHINE_ADC_ENTRY \
+    { MP_ROM_QSTR(MP_QSTR_ADC), MP_ROM_PTR(&machine_adc_type) },
+#else
+#define MACHINE_ADC_ENTRY
+#endif
+
 #ifdef CSR_LEDS_PWM_ENABLE_ADDR
 #define MACHINE_PWM_ENTRY \
     { MP_ROM_QSTR(MP_QSTR_PWM), MP_ROM_PTR(&machine_pwm_type) },
@@ -106,7 +116,8 @@ static MP_DEFINE_CONST_FUN_OBJ_0(machine_freq_obj, machine_freq);
     MACHINE_TIMER_ENTRY                                                 \
     MACHINE_PWM_ENTRY                                                   \
     MACHINE_SDCARD_ENTRY                                                \
-    MACHINE_UART_ENTRY
+    MACHINE_UART_ENTRY                                                  \
+    MACHINE_ADC_ENTRY
 
 // Port callbacks required by extmod/modmachine.c.
 //
