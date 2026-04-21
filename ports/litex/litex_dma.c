@@ -117,14 +117,16 @@ static const mp_map_elem_t litex_dmawriter_locals_dict_table[] = {
 
 static MP_DEFINE_CONST_DICT(litex_dmawriter_locals_dict, litex_dmawriter_locals_dict_table);
 
-const mp_obj_type_t litex_dmawriter_type = {
-	{ &mp_type_type },
-	.name = MP_QSTR_DMAWriter,
-	.print = litex_dmawriter_print,
-	.make_new = litex_dmawriter_make_new,
-        //.buffer_p = { .get_buffer = dmawriter_get_buffer }, //TODO: expose buffer
-	.locals_dict = (mp_obj_t)&litex_dmawriter_locals_dict,
-};
+// TODO: expose buffer via buffer, dmawriter_get_buffer once we have a
+// get_buffer implementation.
+MP_DEFINE_CONST_OBJ_TYPE(
+	litex_dmawriter_type,
+	MP_QSTR_DMAWriter,
+	MP_TYPE_FLAG_NONE,
+	make_new, litex_dmawriter_make_new,
+	print, litex_dmawriter_print,
+	locals_dict, &litex_dmawriter_locals_dict
+	);
 
 #endif //CSR_DMA_WRITER_BASE
 
@@ -234,14 +236,14 @@ static const mp_map_elem_t litex_dmareader_locals_dict_table[] = {
 
 static MP_DEFINE_CONST_DICT(litex_dmareader_locals_dict, litex_dmareader_locals_dict_table);
 
-const mp_obj_type_t litex_dmareader_type = {
-	{ &mp_type_type },
-	.name = MP_QSTR_DMAReader,
-	.print = litex_dmareader_print,
-	.make_new = litex_dmareader_make_new,
-        //.buffer_p = { .get_buffer = dmawriter_get_buffer }, //TODO: expose buffer
-	.locals_dict = (mp_obj_t)&litex_dmareader_locals_dict,
-};
+MP_DEFINE_CONST_OBJ_TYPE(
+	litex_dmareader_type,
+	MP_QSTR_DMAReader,
+	MP_TYPE_FLAG_NONE,
+	make_new, litex_dmareader_make_new,
+	print, litex_dmareader_print,
+	locals_dict, &litex_dmareader_locals_dict
+	);
 
 #endif //CSR_DMA_READER_BASE
 

@@ -93,10 +93,11 @@ static const mp_map_elem_t litex_led_locals_dict_table[] = {
 };
 static MP_DEFINE_CONST_DICT(litex_led_locals_dict, litex_led_locals_dict_table);
 
-const mp_obj_type_t litex_led_type = {
-	{ &mp_type_type },
-	.name = MP_QSTR_LED,
-	.print = litex_led_print,
-	.make_new = litex_led_make_new,
-	.locals_dict = (mp_obj_t)&litex_led_locals_dict,
-};
+MP_DEFINE_CONST_OBJ_TYPE(
+	litex_led_type,
+	MP_QSTR_LED,
+	MP_TYPE_FLAG_NONE,
+	make_new, litex_led_make_new,
+	print, litex_led_print,
+	locals_dict, &litex_led_locals_dict
+	);
