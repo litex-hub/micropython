@@ -25,7 +25,7 @@ typedef struct _litex_led_obj_t {
     int num;
 } litex_led_obj_t;
 
-STATIC litex_led_obj_t litex_leds[8] = {
+static litex_led_obj_t litex_leds[8] = {
 	{{&litex_led_type}, 0},
 	{{&litex_led_type}, 1},
 	{{&litex_led_type}, 2},
@@ -36,7 +36,7 @@ STATIC litex_led_obj_t litex_leds[8] = {
 	{{&litex_led_type}, 7}
 };
 
-STATIC mp_obj_t litex_led_make_new(const mp_obj_type_t *type_in,
+static mp_obj_t litex_led_make_new(const mp_obj_type_t *type_in,
 		size_t n_args, size_t n_kw, const mp_obj_t *args) {
 	mp_arg_check_num(n_args, n_kw, 1, 1, false);
 
@@ -56,7 +56,7 @@ void litex_led_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t 
 	mp_printf(print, "LED(%u)", self->num);
 }
 
-STATIC mp_obj_t litex_led_on(mp_obj_t self_in) {
+static mp_obj_t litex_led_on(mp_obj_t self_in) {
 	litex_led_obj_t *led = self_in;
 	char value = leds_out_read();
 
@@ -64,9 +64,9 @@ STATIC mp_obj_t litex_led_on(mp_obj_t self_in) {
 
 	return mp_const_none;
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(litex_led_on_obj, litex_led_on);
+static MP_DEFINE_CONST_FUN_OBJ_1(litex_led_on_obj, litex_led_on);
 
-STATIC mp_obj_t litex_led_off(mp_obj_t self_in) {
+static mp_obj_t litex_led_off(mp_obj_t self_in) {
 	litex_led_obj_t *led = self_in;
 	char value = leds_out_read();
 
@@ -74,9 +74,9 @@ STATIC mp_obj_t litex_led_off(mp_obj_t self_in) {
 
 	return mp_const_none;
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(litex_led_off_obj, litex_led_off);
+static MP_DEFINE_CONST_FUN_OBJ_1(litex_led_off_obj, litex_led_off);
 
-STATIC mp_obj_t litex_led_toggle(mp_obj_t self_in) {
+static mp_obj_t litex_led_toggle(mp_obj_t self_in) {
 	litex_led_obj_t *led = self_in;
 	char value = leds_out_read();
 
@@ -84,14 +84,14 @@ STATIC mp_obj_t litex_led_toggle(mp_obj_t self_in) {
 
 	return mp_const_none;
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(litex_led_toggle_obj, litex_led_toggle);
+static MP_DEFINE_CONST_FUN_OBJ_1(litex_led_toggle_obj, litex_led_toggle);
 
-STATIC const mp_map_elem_t litex_led_locals_dict_table[] = {
+static const mp_map_elem_t litex_led_locals_dict_table[] = {
 	{ MP_OBJ_NEW_QSTR(MP_QSTR_on),     (mp_obj_t)&litex_led_on_obj   },
 	{ MP_OBJ_NEW_QSTR(MP_QSTR_off),    (mp_obj_t)&litex_led_off_obj  },
 	{ MP_OBJ_NEW_QSTR(MP_QSTR_toggle), (mp_obj_t)&litex_led_toggle_obj },
 };
-STATIC MP_DEFINE_CONST_DICT(litex_led_locals_dict, litex_led_locals_dict_table);
+static MP_DEFINE_CONST_DICT(litex_led_locals_dict, litex_led_locals_dict_table);
 
 const mp_obj_type_t litex_led_type = {
 	{ &mp_type_type },

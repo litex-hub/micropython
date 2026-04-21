@@ -46,17 +46,17 @@
 
 extern const mp_obj_type_t mp_fat_vfs_type;
 
-STATIC const qstr os_uname_info_fields[] = {
+static const qstr os_uname_info_fields[] = {
     MP_QSTR_sysname, MP_QSTR_nodename,
     MP_QSTR_release, MP_QSTR_version, MP_QSTR_machine
 };
-STATIC const MP_DEFINE_STR_OBJ(os_uname_info_sysname_obj, MICROPY_PY_SYS_PLATFORM);
-STATIC const MP_DEFINE_STR_OBJ(os_uname_info_nodename_obj, MICROPY_PY_SYS_PLATFORM);
-STATIC const MP_DEFINE_STR_OBJ(os_uname_info_release_obj, MICROPY_VERSION_STRING);
-STATIC const MP_DEFINE_STR_OBJ(os_uname_info_version_obj, MICROPY_GIT_TAG " on " MICROPY_BUILD_DATE);
-STATIC const MP_DEFINE_STR_OBJ(os_uname_info_machine_obj, MICROPY_HW_BOARD_NAME " with " MICROPY_HW_MCU_NAME);
+static const MP_DEFINE_STR_OBJ(os_uname_info_sysname_obj, MICROPY_PY_SYS_PLATFORM);
+static const MP_DEFINE_STR_OBJ(os_uname_info_nodename_obj, MICROPY_PY_SYS_PLATFORM);
+static const MP_DEFINE_STR_OBJ(os_uname_info_release_obj, MICROPY_VERSION_STRING);
+static const MP_DEFINE_STR_OBJ(os_uname_info_version_obj, MICROPY_GIT_TAG " on " MICROPY_BUILD_DATE);
+static const MP_DEFINE_STR_OBJ(os_uname_info_machine_obj, MICROPY_HW_BOARD_NAME " with " MICROPY_HW_MCU_NAME);
 
-STATIC MP_DEFINE_ATTRTUPLE(
+static MP_DEFINE_ATTRTUPLE(
     os_uname_info_obj,
     os_uname_info_fields,
     5,
@@ -67,13 +67,13 @@ STATIC MP_DEFINE_ATTRTUPLE(
     (mp_obj_t)&os_uname_info_machine_obj
     );
 
-STATIC mp_obj_t os_uname(void) {
+static mp_obj_t os_uname(void) {
     return (mp_obj_t)&os_uname_info_obj;
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_0(os_uname_obj, os_uname);
+static MP_DEFINE_CONST_FUN_OBJ_0(os_uname_obj, os_uname);
 
 #ifdef ESP32
-STATIC mp_obj_t os_urandom(mp_obj_t num) {
+static mp_obj_t os_urandom(mp_obj_t num) {
     mp_int_t n = mp_obj_get_int(num);
     vstr_t vstr;
     vstr_init_len(&vstr, n);
@@ -87,11 +87,11 @@ STATIC mp_obj_t os_urandom(mp_obj_t num) {
     }
     return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr);
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(os_urandom_obj, os_urandom);
+static MP_DEFINE_CONST_FUN_OBJ_1(os_urandom_obj, os_urandom);
 #endif
 
 #if MICROPY_PY_OS_DUPTERM
-STATIC mp_obj_t os_dupterm_notify(mp_obj_t obj_in) {
+static mp_obj_t os_dupterm_notify(mp_obj_t obj_in) {
     (void)obj_in;
     for (;;) {
         int c = mp_uos_dupterm_rx_chr();
@@ -102,10 +102,10 @@ STATIC mp_obj_t os_dupterm_notify(mp_obj_t obj_in) {
     }
     return mp_const_none;
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(os_dupterm_notify_obj, os_dupterm_notify);
+static MP_DEFINE_CONST_FUN_OBJ_1(os_dupterm_notify_obj, os_dupterm_notify);
 #endif
 
-STATIC const mp_rom_map_elem_t os_module_globals_table[] = {
+static const mp_rom_map_elem_t os_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_uos) },
     { MP_ROM_QSTR(MP_QSTR_uname), MP_ROM_PTR(&os_uname_obj) },
 #ifdef ESP32
@@ -140,7 +140,7 @@ STATIC const mp_rom_map_elem_t os_module_globals_table[] = {
     #endif
 };
 
-STATIC MP_DEFINE_CONST_DICT(os_module_globals, os_module_globals_table);
+static MP_DEFINE_CONST_DICT(os_module_globals, os_module_globals_table);
 
 const mp_obj_module_t uos_module = {
     .base = { &mp_type_module },
