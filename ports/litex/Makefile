@@ -136,10 +136,9 @@ DRIVERS_SRC_C = $(addprefix drivers/,\
 	bus/softspi.c \
 )
 
-EXTMOD_SRC_C = $(addprefix extmod/,\
-	machine_spi.c \
-	machine_i2c.c \
-)
+# extmod/machine_spi.c and extmod/machine_i2c.c are already built via py.mk
+# (see EXTMOD_SRC_C there), so we don't list them again here.
+EXTMOD_SRC_C =
 
 CRT0_S ?= $(CPU_DIRECTORY)/crt0.S
 CRT0_O = $(BUILD)/software/libbase/crt0.o
