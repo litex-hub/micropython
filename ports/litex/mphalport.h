@@ -19,11 +19,15 @@ static inline int mp_hal_stdin_rx_chr(void) {
         return c;
 }
 
-// Send the string of given length.
-static inline void mp_hal_stdout_tx_strn(const char *str, mp_uint_t len) {
+// Send the string of given length, returning the number of bytes actually
+// written (matches upstream's mp_hal_stdout_tx_strn ABI from 1.22).
+static inline mp_uint_t mp_hal_stdout_tx_strn(const char *str, size_t len) {
+    mp_uint_t written = 0;
     while (len--) {
         uart_write(*str++);
+        written++;
     }
+    return written;
 }
 
 

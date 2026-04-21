@@ -68,7 +68,7 @@ extern char _edata_rom, _emain_ram;
 //FIXME: move logic to sdcard module
 void sdcard_init_vfs(fs_user_mount_t *vfs, int part);
 bool sdcard_is_present(void);
-STATIC bool init_sdcard_fs(void)
+static bool init_sdcard_fs(void)
 {
     //FIXME: not callable after soft reset...
     bool first_part = true;
@@ -144,7 +144,7 @@ STATIC bool init_sdcard_fs(void)
     return true;
 }
 
-STATIC void deinit_sdcard_fs(void)
+static void deinit_sdcard_fs(void)
 {
     //mp_vfs_mount_t cur = MP_STATE_PORT(vfs_cur);
 }
@@ -297,8 +297,9 @@ void gc_collect(void) {
 #endif
 
 #if !MICROPY_READER_VFS
-mp_lexer_t *mp_lexer_new_from_file(const char *filename) {
-    //defined in case of not using the implementation in extmod/vfs_reader.c
+mp_lexer_t *mp_lexer_new_from_file(qstr filename) {
+    // Defined only if extmod/vfs_reader.c is not providing it. The qstr
+    // signature matches the upstream API from 1.20+.
     mp_raise_OSError(MP_ENOENT);
 }
 #endif
