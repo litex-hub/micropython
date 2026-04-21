@@ -162,3 +162,24 @@ LiteX SoC
 >>> litex.csr_read('ctrl_scratch')
 42
 ```
+
+Drawing into the framebuffer with `framebuf`
+--------------------------------------------
+
+`litex.Video` exposes the framebuffer memory through MicroPython's buffer
+protocol, so the stock `framebuf.FrameBuffer` maps directly over it — no
+copies, every primitive goes straight to screen RAM. Requires a SoC built
+with `--with-video-framebuffer`.
+
+```python
+import framebuf, litex
+
+video = litex.Video(0)
+fb = framebuf.FrameBuffer(video, video.width(), video.height(),
+                          framebuf.RGB565)
+fb.fill(0)
+fb.text("LiteX + MicroPython", 10, 10, 0xFFFF)
+```
+
+See [`examples/video_framebuf.py`](examples/video_framebuf.py) for a
+ready-to-run script.
