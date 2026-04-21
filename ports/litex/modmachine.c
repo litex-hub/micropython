@@ -32,8 +32,13 @@ STATIC mp_obj_t machine_identifier(void) {
 MP_DEFINE_CONST_FUN_OBJ_0(machine_identifier_obj, machine_identifier);
 
 STATIC NORETURN mp_obj_t machine_reset(void) {
-    ctrl_reset_soc_rst_write(1);
-    for(;;);
+    // Modern LiteX no longer auto-generates a per-bitfield writer
+    // ctrl_reset_soc_rst_write(); write the whole reset register and use the
+    // CSR-generated offset macro so the correct bit is set regardless of
+    // future additions to ctrl.reset (cpu_rst, etc.).
+    ctrl_reset_write(1 << CSR_CTRL_RESET_SOC_RST_OFFSET);
+    for (;;) {
+    }
 }
 MP_DEFINE_CONST_FUN_OBJ_0(machine_reset_obj, machine_reset);
 
