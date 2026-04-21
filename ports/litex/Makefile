@@ -92,12 +92,17 @@ LDFLAGS += -L$(BUILDINC_DIRECTORY)
 LDFLAGS += $(filter -march=% -mabi=%, $(CPUFLAGS)) # CPU specific.
 
 # Set Sources.
+#
+# modmachine.c is NOT compiled standalone — it's #included from
+# extmod/modmachine.c via MICROPY_PY_MACHINE_INCLUDEFILE (see mpconfigport.h).
+# The stock time module (extmod/modtime.c) also replaces the port's old
+# modutime.c; any port-specific mp_hal_ticks_*/mp_hal_delay_* hooks live in
+# mphalport.h.
 SRC_C = \
 	main.c \
 	isr.c \
-	modmachine.c \
+	mphalport.c \
 	moduos.c \
-	modutime.c \
 	modlitex.c \
 	litex_led.c \
 	litex_dma.c \
