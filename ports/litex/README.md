@@ -60,3 +60,44 @@ $ python3 ../../../tools/pyboard.py -d /dev/ttyUSBX test_hello_world.py
 $ python3 ../../../tools/pyboard.py -d /dev/ttyUSBX test_machine.py
 $ etc...
 ```
+
+Running tests under LiteX-sim (no FPGA needed)
+----------------------------------------------
+For quick iteration and CI, the port can be exercised entirely in software
+against a Verilator-simulated LiteX SoC. This needs `verilator`, `socat`
+and the `litex` Python package on your `$PATH`.
+
+One-time: generate a sim target (this also produces the software headers
+`ports/litex` needs for its build). The `--libc-mode=full` flag is required
+because MicroPython uses `setjmp`, `memcmp`, math functions, etc. that are
+absent from the `minimal` picolibc build:
+
+```bash
+$ python3 -m litex.tools.litex_sim \
+      --cpu-type=vexriscv \
+      --integrated-main-ram-size=0x01000000 \
+      --libc-mode=full \
+      --output-dir=/tmp/litex_mpy_sim \
+      --no-compile-gateware
+```
+
+Build the MicroPython firmware against that target and run the sim smoke test:
+
+```bash
+$ cd ports/litex
+$ export BUILD_DIRECTORY=/tmp/litex_mpy_sim
+$ make
+$ make test                                    # runs test/test_hello_world.py
+$ make test TESTS="test/test_machine.py"       # or any other test
+```
+
+`make test` drives [`tools/run_sim.py`](tools/run_sim.py), which spawns
+`litex_sim --uart-pty --non-interactive`, waits for the Verilator build
+and the MicroPython REPL, then executes each test over the raw REPL.
+The first run includes a one-time Verilator C++ compilation (~2 minutes on
+a typical laptop); subsequent runs reuse the compiled `Vsim` binary.
+
+A 16 MiB main RAM is the default because MicroPython zeroes a GC alloc
+table proportional to the heap at startup and a simulated 1 MHz CPU
+takes tens of minutes to do that on 256 MiB. Passing `--ram-size=...`
+to `tools/run_sim.py` overrides it.
