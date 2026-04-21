@@ -77,6 +77,32 @@ Order, each step verified by a sim build + hello_world:
 3. Rename `umachine` → `machine` etc.
 4. Codeformat pass, unify copyright headers.
 
+Progress on branch `litex-1.29-rebase` (forked from `upstream/master`):
+- [x] Port imported from `litex-modernize`.
+- [x] Makefile `shared/` paths.
+- [x] `#include` paths (including `extmod/modmachine.h` consolidation).
+- [x] `STATIC` keyword → `static`.
+- [x] `mp_hal_stdout_tx_strn` and `mp_lexer_new_from_file` signatures.
+- [ ] **Current build hurdle**: `modmachine.c` must stop defining
+      `machine_reset_obj` / `machine_freq_obj` (now owned by
+      `extmod/modmachine.c`) and adopt the
+      `MICROPY_PY_MACHINE_INCLUDEFILE` pattern (callbacks:
+      `mp_machine_idle`, `mp_machine_reset`, `mp_machine_reset_cause`;
+      port-specific globals via `MICROPY_PY_MACHINE_EXTRA_GLOBALS`).
+- [ ] Delete `modutime.c`, use stock `extmod/modtime.c` with a
+      `MICROPY_PY_TIME_INCLUDEFILE` shim for `mp_hal_ticks_*` /
+      `mp_hal_delay_*`.
+- [ ] Replace `MICROPY_PORT_BUILTIN_MODULES` in `mpconfigport.h` with
+      `MP_REGISTER_MODULE(MP_QSTR_litex, mp_module_litex)` at the
+      bottom of `modlitex.c`.
+- [ ] Convert `mp_obj_type_t` literals to `MP_DEFINE_CONST_OBJ_TYPE`
+      (all peripheral type files: `machine_pin`, `machine_hw_spi`,
+      `machine_timer`, `machine_pwm`, `machine_sdcard`, `litex_dma`,
+      `litex_video`, `litex_led`).
+- [ ] Drop `u`-prefix from module names (`umachine` → `machine`,
+      etc.), add a board-level `manifest.py` (even if empty).
+- [ ] `tools/codeformat.py` pass + copyright header unification.
+
 ### §3 — GitHub Actions CI
 
 One workflow, `.github/workflows/ports_litex.yml`, patterned after
