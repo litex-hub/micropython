@@ -47,7 +47,7 @@
 #include "py/runtime.h"
 #include "py/stream.h"
 #include "py/mphal.h"
-#include "extmod/machine_spi.h"
+#include "extmod/modmachine.h"
 
 //NOTE: if support for ESP32 in same will never be required, all code
 //within all references to "#ifdef ESP32" can be removed
