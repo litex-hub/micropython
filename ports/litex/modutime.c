@@ -27,8 +27,7 @@
  */
 
 #include "py/runtime.h"
-#include "extmod/utime_mphal.h"
-#include "lib/timeutils/timeutils.h"
+#include "shared/timeutils/timeutils.h"
 #include "liblitesdk/litesdk_timer.h"
 
 

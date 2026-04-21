@@ -12,7 +12,7 @@
 #include "py/gc.h"
 #include "py/mperrno.h"
 #include "py/stream.h"
-#include "lib/utils/pyexec.h"
+#include "shared/runtime/pyexec.h"
 
 #include "extmod/vfs.h"
 #include "extmod/vfs_fat.h"

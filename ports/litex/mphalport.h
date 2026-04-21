@@ -6,7 +6,7 @@
 #define INCLUDED_MPHALPORT_H
 
 #include <uart.h>
-#include "lib/utils/interrupt_char.h"
+#include "shared/runtime/interrupt_char.h"
 
 // Receive single character, blocking until one is available.
 static inline int mp_hal_stdin_rx_chr(void) {

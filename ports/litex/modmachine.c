@@ -4,10 +4,8 @@
 
 #include "py/runtime.h"
 #include "py/obj.h"
+#include "extmod/modmachine.h"
 #include "modmachine.h"
-#include "extmod/machine_mem.h"
-#include "extmod/machine_spi.h"
-#include "extmod/machine_i2c.h"
 
 #include <generated/csr.h>
 #include <generated/soc.h>
