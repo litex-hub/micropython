@@ -1,0 +1,17 @@
+LiteX ecosystem would not exist without the collaborative work of contributors! Here is below the
+list of all the Fupy/LiteX-MicroPython contributors.
+
+In the source code, each file list the main authors/contributors:
+- author(s) that created the initial content.
+- contributor(s) that added essential features/improvements.
+
+If you think you should be in this list and don't find yourself, write to florent@enjoy-digital.fr
+and we'll fix it!
+
+Contributors:
+Copyright (c) 2017-2020 Ewen McNeill <ewen@naos.co.nz>
+Copyright (c) 2021      Florent Kermarrec <florent@enjoy-digital.fr
+Copyright (c) 2017-2020 Joel Stanley <joel@jms.id.au>
+Copyright (c) 2017-2020 Tim 'mithro' Ansell <mithro@mithis.com>
+Copyright (c) 2021      Victor Suarez Rovere <suarezvictor@gmail.com>
+Copyright (c) 2017-2020 William D. Jones <thor0505@comcast.net>
