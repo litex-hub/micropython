@@ -12,16 +12,18 @@ The port tracks **upstream MicroPython 1.29**.
 Supported features:
 - REPL (Python prompt) over UART.
 - Standard `machine` module: `Pin`, `SPI`/`SoftSPI`, `SoftI2C`, `PWM`,
-  `Timer`, `SDCard`, `mem8/16/32`, plus `reset()`, `freq()`, and the
-  LiteX-specific `identifier()`. Peripheral classes are gated by the
-  corresponding CSR, so `machine.Pin` only appears on SoCs built with
-  a GPIO core, etc.
+  `Timer`, `UART` (secondary UARTs), `SDCard`, `ADC` (Xilinx XADC),
+  `mem8/16/32`, plus `reset()`, `freq()`, and the LiteX-specific
+  `identifier()`. Peripheral classes are gated by the corresponding CSR,
+  so `machine.Pin` only appears on SoCs built with a GPIO core, etc.
 - Standard `time` and `os` modules with the LiteX timer HAL underneath.
 - LiteX-specific `litex` module for build metadata (sys_clk_freq, git
-  sha, bus standard) and raw MMIO: `litex.read32(addr)`,
-  `litex.write32(addr, value)`, `litex.info()`.
+  sha, bus standard), raw MMIO (`read32`/`write32`), by-name CSR access
+  (`csr_read`/`csr_write`/`csrs` via a build-time lookup table),
+  `EventManager` for per-peripheral event CSRs, and `info()`.
 - Optional peripheral wrappers under `litex.*`: `LED`, `DMAWriter`,
-  `DMAReader`, `Video`.
+  `DMAReader`, `Video` (the `Video` object plugs directly into
+  `framebuf.FrameBuffer` for zero-copy drawing).
 - FatFS over SD card (when the SoC includes an `SDCore` or `SPISDCard`).
 
 Setting up LiteX
@@ -161,6 +163,46 @@ LiteX SoC
 >>> litex.csr_write('ctrl_scratch', 42)
 >>> litex.csr_read('ctrl_scratch')
 42
+
+>>> # EventManager — peripheral event CSR trio (<prefix>_ev_pending,
+>>> # <prefix>_ev_enable, <prefix>_ev_status) wrapped by peripheral name.
+>>> ev = litex.EventManager('uart')
+>>> ev.pending()
+0
+>>> ev.enable(0x3)          # enable TX and RX events
+>>> ev.clear(0x3)           # write-1-to-clear
+```
+
+Secondary UARTs with `machine.UART`
+-----------------------------------
+
+The primary LiteX UART is wired to the REPL. Any additional UARTs built
+into the SoC (`--with-uart1`, `--with-uart2`, etc.) are exposed as
+`machine.UART(id)` with the standard MicroPython stream API — `read`,
+`write`, `readline`, `any`. Baud/parity/stop are fixed at SoC generation
+time; the constructor raises on anything other than 8N1.
+
+```python
+import machine
+u = machine.UART(1)
+u.write(b"hello\n")
+line = u.readline()
+```
+
+System-monitor ADC
+------------------
+
+SoCs built with `--with-xadc` on Xilinx parts get `machine.ADC` backed by
+the system-monitor XADC. Four channels: `temperature`, `vccint`,
+`vccaux`, `vccbram`. `read()` returns the raw 12-bit sample; `read_u16()`
+returns the same value scaled into the 0–65535 range used by other
+MicroPython ports.
+
+```python
+import machine
+t = machine.ADC('temperature')
+raw = t.read()
+celsius = raw * 503.975 / 4096 - 273.15
 ```
 
 Drawing into the framebuffer with `framebuf`
