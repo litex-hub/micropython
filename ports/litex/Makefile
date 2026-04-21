@@ -112,6 +112,7 @@ SRC_C = \
 	machine_sdcard.c \
 	machine_pin.c \
 	machine_uart.c \
+	machine_adc.c \
 	shared/runtime/sys_stdio_mphal.c \
 	shared/runtime/stdout_helpers.c \
 	shared/runtime/interrupt_char.c \
