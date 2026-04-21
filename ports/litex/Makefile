@@ -134,6 +134,7 @@ SRC_LITEX = \
 SRC_LITEX += \
 	$(COMPILER_RT_DIRECTORY)/lib/builtins/truncdfsf2.c \
 	$(COMPILER_RT_DIRECTORY)/lib/builtins/extendsfdf2.c \
+	$(COMPILER_RT_DIRECTORY)/lib/builtins/floatundidf.c \
 
 # SDCard sources are only needed when the SoC exposes an SDCore or SPISDCard
 # peripheral (i.e. MICROPY_VFS_FAT=1). Sim targets without --with-sdcard would
