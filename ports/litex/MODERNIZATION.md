@@ -83,25 +83,39 @@ Progress on branch `litex-1.29-rebase` (forked from `upstream/master`):
 - [x] `#include` paths (including `extmod/modmachine.h` consolidation).
 - [x] `STATIC` keyword → `static`.
 - [x] `mp_hal_stdout_tx_strn` and `mp_lexer_new_from_file` signatures.
-- [ ] **Current build hurdle**: `modmachine.c` must stop defining
-      `machine_reset_obj` / `machine_freq_obj` (now owned by
-      `extmod/modmachine.c`) and adopt the
-      `MICROPY_PY_MACHINE_INCLUDEFILE` pattern (callbacks:
-      `mp_machine_idle`, `mp_machine_reset`, `mp_machine_reset_cause`;
-      port-specific globals via `MICROPY_PY_MACHINE_EXTRA_GLOBALS`).
-- [ ] Delete `modutime.c`, use stock `extmod/modtime.c` with a
-      `MICROPY_PY_TIME_INCLUDEFILE` shim for `mp_hal_ticks_*` /
-      `mp_hal_delay_*`.
-- [ ] Replace `MICROPY_PORT_BUILTIN_MODULES` in `mpconfigport.h` with
-      `MP_REGISTER_MODULE(MP_QSTR_litex, mp_module_litex)` at the
-      bottom of `modlitex.c`.
-- [ ] Convert `mp_obj_type_t` literals to `MP_DEFINE_CONST_OBJ_TYPE`
-      (all peripheral type files: `machine_pin`, `machine_hw_spi`,
+- [x] `modmachine.c` refactored to the `MICROPY_PY_MACHINE_INCLUDEFILE`
+      pattern (callbacks + `MICROPY_PY_MACHINE_EXTRA_GLOBALS`).
+- [x] `modutime.c` deleted; stock `extmod/modtime.c` enabled; HAL
+      ticks/delay hooks moved to `mphalport.c`.
+- [x] `modlitex.c` uses `MP_REGISTER_MODULE`; the old
+      `MICROPY_PORT_BUILTIN_MODULES` block is gone.
+- [x] `moduos.c` deleted; stock `extmod/modos.c` enabled via
+      `MICROPY_PY_OS=1` and `MICROPY_PY_OS_UNAME=1`.
+- [x] `mp_obj_type_t` literals → `MP_DEFINE_CONST_OBJ_TYPE` in all
+      peripheral type files (`machine_pin`, `machine_hw_spi`,
       `machine_timer`, `machine_pwm`, `machine_sdcard`, `litex_dma`,
       `litex_video`, `litex_led`).
-- [ ] Drop `u`-prefix from module names (`umachine` → `machine`,
-      etc.), add a board-level `manifest.py` (even if empty).
-- [ ] `tools/codeformat.py` pass + copyright header unification.
+- [x] `machine_timer_obj_head` switched from `MICROPY_PORT_ROOT_POINTERS`
+      to per-file `MP_REGISTER_ROOT_POINTER`.
+- [x] Drop `u`-prefix from module names in tests and examples.
+- [x] Avoid `long double` and `_Float16` codepaths (pin
+      `MICROPY_FLOAT_FORMAT_IMPL_APPROX`, disable
+      `MICROPY_FLOAT_USE_NATIVE_FLT16`); add one more compiler-rt
+      helper (`floatundidf`) to satisfy 1.29's parser.
+- [x] **Build + `test/test_hello_world.py` green on LiteX sim.**
+
+Remaining polish (out of scope for the first "it runs" milestone):
+- [ ] `tools/codeformat.py` pass + copyright header unification so the
+      tree survives upstream's lint gate.
+- [ ] Board-level `manifest.py` (currently none; required by 1.29's
+      frozen-module machinery even if empty).
+- [ ] Larger tests (`test_machine.py`, `test_time.py`, ...) exercise
+      fine on hardware but time out on the simulated 1 MHz UART: they
+      need `--timer-uptime` SoCs or a raw-paste REPL mode in
+      `tools/run_sim.py` to be CI-viable. Not a port bug.
+- [ ] Document board-level CPU clock override (sim is fixed at 1 MHz;
+      the firmware can compute `mp_hal_delay_us` against
+      `CONFIG_CLOCK_FREQUENCY` already, so real boards just work).
 
 ### §3 — GitHub Actions CI
 
