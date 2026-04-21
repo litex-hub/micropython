@@ -119,6 +119,134 @@ static mp_obj_t litex_csr_write(mp_obj_t name_obj, mp_obj_t value_obj) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(litex_csr_write_obj, litex_csr_write);
 
+// litex.EventManager("<prefix>") — wrap a LiteX EventManager CSR block.
+//
+// LiteX peripherals expose IRQ-related state via a triple of CSRs named
+// <prefix>_ev_pending / <prefix>_ev_enable / <prefix>_ev_status. This class
+// resolves those names through the build-time CSR table and exposes the
+// common operations (poll pending bits, clear them, enable/disable
+// sources) as methods — so user code doesn't have to reach for
+// csr_read/csr_write for every edge of an event.
+//
+// IRQ dispatch to a Python callback from the port's C-level isr() is not
+// wired up yet; handlers are scheduled via polling for now (either from a
+// machine.Timer, a tight loop, or a REPL prompt).
+typedef struct _litex_event_manager_obj_t {
+    mp_obj_base_t base;
+    uint32_t pending_addr;
+    uint32_t enable_addr;
+    uint32_t status_addr;     // 0 if this peripheral has no ev_status
+    const char *prefix;
+} litex_event_manager_obj_t;
+
+extern const mp_obj_type_t litex_event_manager_type;
+
+static uint32_t litex_lookup_csr_addr(const char *prefix, const char *suffix) {
+    // Compose "<prefix>_ev_<suffix>" and look it up.
+    char name[64];
+    size_t lp = strlen(prefix);
+    size_t ls = strlen(suffix);
+    if (lp + 4 + ls + 1 > sizeof(name)) {
+        return 0;
+    }
+    memcpy(name, prefix, lp);
+    memcpy(name + lp, "_ev_", 4);
+    memcpy(name + lp + 4, suffix, ls + 1);
+    const litex_csr_entry_t *e = litex_csr_lookup(name);
+    return e ? e->addr : 0;
+}
+
+static mp_obj_t litex_event_manager_make_new(const mp_obj_type_t *type,
+        size_t n_args, size_t n_kw, const mp_obj_t *args) {
+    mp_arg_check_num(n_args, n_kw, 1, 1, false);
+    const char *prefix = mp_obj_str_get_str(args[0]);
+    uint32_t pending = litex_lookup_csr_addr(prefix, "pending");
+    uint32_t enable = litex_lookup_csr_addr(prefix, "enable");
+    if (!pending || !enable) {
+        mp_raise_msg_varg(&mp_type_ValueError,
+            MP_ERROR_TEXT("no EventManager CSRs for peripheral '%s'"), prefix);
+    }
+    litex_event_manager_obj_t *self = m_new_obj(litex_event_manager_obj_t);
+    self->base.type = type;
+    self->pending_addr = pending;
+    self->enable_addr = enable;
+    self->status_addr = litex_lookup_csr_addr(prefix, "status");  // may be 0
+    self->prefix = prefix;  // lifetime: interned by qstr or caller-owned
+    return MP_OBJ_FROM_PTR(self);
+}
+
+static void litex_event_manager_print(const mp_print_t *print, mp_obj_t self_in,
+                                      mp_print_kind_t kind) {
+    (void)kind;
+    litex_event_manager_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    mp_printf(print, "EventManager('%s', pending=0x%08x, enable=0x%08x)",
+        self->prefix, (unsigned int)self->pending_addr,
+        (unsigned int)self->enable_addr);
+}
+
+static mp_obj_t litex_event_manager_pending(mp_obj_t self_in) {
+    litex_event_manager_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    return mp_obj_new_int_from_uint(MMPTR(self->pending_addr));
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(litex_event_manager_pending_obj,
+                                 litex_event_manager_pending);
+
+static mp_obj_t litex_event_manager_status(mp_obj_t self_in) {
+    litex_event_manager_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    if (!self->status_addr) {
+        mp_raise_NotImplementedError(MP_ERROR_TEXT("peripheral has no ev_status"));
+    }
+    return mp_obj_new_int_from_uint(MMPTR(self->status_addr));
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(litex_event_manager_status_obj,
+                                 litex_event_manager_status);
+
+// Write-1-to-clear: writing 1 bits to ev_pending acknowledges those events.
+static mp_obj_t litex_event_manager_clear(mp_obj_t self_in, mp_obj_t mask_obj) {
+    litex_event_manager_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    MMPTR(self->pending_addr) = mp_obj_get_int_truncated(mask_obj);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(litex_event_manager_clear_obj,
+                                 litex_event_manager_clear);
+
+static mp_obj_t litex_event_manager_enable(mp_obj_t self_in, mp_obj_t mask_obj) {
+    litex_event_manager_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    uint32_t mask = mp_obj_get_int_truncated(mask_obj);
+    MMPTR(self->enable_addr) = MMPTR(self->enable_addr) | mask;
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(litex_event_manager_enable_obj,
+                                 litex_event_manager_enable);
+
+static mp_obj_t litex_event_manager_disable(mp_obj_t self_in, mp_obj_t mask_obj) {
+    litex_event_manager_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    uint32_t mask = mp_obj_get_int_truncated(mask_obj);
+    MMPTR(self->enable_addr) = MMPTR(self->enable_addr) & ~mask;
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(litex_event_manager_disable_obj,
+                                 litex_event_manager_disable);
+
+static const mp_rom_map_elem_t litex_event_manager_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_pending), MP_ROM_PTR(&litex_event_manager_pending_obj) },
+    { MP_ROM_QSTR(MP_QSTR_status),  MP_ROM_PTR(&litex_event_manager_status_obj) },
+    { MP_ROM_QSTR(MP_QSTR_clear),   MP_ROM_PTR(&litex_event_manager_clear_obj) },
+    { MP_ROM_QSTR(MP_QSTR_enable),  MP_ROM_PTR(&litex_event_manager_enable_obj) },
+    { MP_ROM_QSTR(MP_QSTR_disable), MP_ROM_PTR(&litex_event_manager_disable_obj) },
+};
+static MP_DEFINE_CONST_DICT(litex_event_manager_locals_dict,
+                            litex_event_manager_locals_dict_table);
+
+MP_DEFINE_CONST_OBJ_TYPE(
+    litex_event_manager_type,
+    MP_QSTR_EventManager,
+    MP_TYPE_FLAG_NONE,
+    make_new, litex_event_manager_make_new,
+    print, litex_event_manager_print,
+    locals_dict, &litex_event_manager_locals_dict
+    );
+
 // litex.csrs() — return a list of every CSR name in the SoC.
 static mp_obj_t litex_csrs(void) {
     mp_obj_t list = mp_obj_new_list(0, NULL);
@@ -177,6 +305,10 @@ static const mp_rom_map_elem_t litex_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_csrs),          MP_ROM_PTR(&litex_csrs_obj) },
 
     { MP_ROM_QSTR(MP_QSTR_info),          MP_ROM_PTR(&litex_info_obj) },
+
+    // Thin wrapper over a peripheral's <prefix>_ev_{pending,enable,status}
+    // CSR triple, resolved through the build-time lookup table.
+    { MP_ROM_QSTR(MP_QSTR_EventManager),  MP_ROM_PTR(&litex_event_manager_type) },
 
     // Base addresses from the LiteX generation.
     { MP_ROM_QSTR(MP_QSTR_CSR_BASE),      MP_ROM_INT(CSR_BASE) },
