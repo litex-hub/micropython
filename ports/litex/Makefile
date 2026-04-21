@@ -179,4 +179,14 @@ $(BUILD)/firmware.elf: $(OBJ)
 $(BUILD)/firmware.bin: $(BUILD)/firmware.elf
 	$(Q)$(OBJCOPY) -O binary $^ $(BUILD)/firmware.bin
 
+# Run MicroPython tests under litex_sim. By default runs the hello-world
+# smoke test; override TESTS="..." for a different set, e.g.
+#   make test TESTS="test/test_machine.py test/test_time.py"
+# Requires Verilator + socat + the `litex` Python package on $PATH.
+TESTS ?= test/test_hello_world.py
+test: $(BUILD)/firmware.bin
+	$(Q)tools/run_sim.py --firmware $(BUILD)/firmware.bin $(TESTS)
+
+.PHONY: test
+
 include ../../py/mkrules.mk
