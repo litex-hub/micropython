@@ -107,12 +107,12 @@ SRC_C = \
 	machine_pwm.c \
 	machine_sdcard.c \
 	machine_pin.c \
-	lib/utils/sys_stdio_mphal.c \
-	lib/utils/stdout_helpers.c \
-	lib/utils/interrupt_char.c \
-	lib/utils/pyexec.c \
-	lib/timeutils/timeutils.c \
-	lib/mp-readline/readline.c
+	shared/runtime/sys_stdio_mphal.c \
+	shared/runtime/stdout_helpers.c \
+	shared/runtime/interrupt_char.c \
+	shared/runtime/pyexec.c \
+	shared/timeutils/timeutils.c \
+	shared/readline/readline.c
 
 #lib sources with no need of QSTR extraction
 SRC_LITEX = \
