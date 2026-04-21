@@ -58,7 +58,7 @@ void mp_hal_delay_ms(mp_uint_t ms)
 }
 
 // time()
-STATIC mp_obj_t time_time(void) {
+static mp_obj_t time_time(void) {
 /*
    static timeutils_struct_time_t t;
 #warning implement RTC
@@ -69,7 +69,7 @@ STATIC mp_obj_t time_time(void) {
 }
 
 // localtime([secs])
-STATIC mp_obj_t time_localtime(size_t n_args, const mp_obj_t *args) {
+static mp_obj_t time_localtime(size_t n_args, const mp_obj_t *args) {
     timeutils_struct_time_t tm;
     mp_int_t seconds;
     if (n_args == 0 || args[0] == mp_const_none) {
@@ -91,10 +91,10 @@ STATIC mp_obj_t time_localtime(size_t n_args, const mp_obj_t *args) {
     };
     return mp_obj_new_tuple(8, tuple);
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(time_localtime_obj, 0, 1, time_localtime);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(time_localtime_obj, 0, 1, time_localtime);
 
 // mktime()
-STATIC mp_obj_t time_mktime(mp_obj_t tuple) {
+static mp_obj_t time_mktime(mp_obj_t tuple) {
     size_t len;
     mp_obj_t *elem;
     mp_obj_get_array(tuple, &len, &elem);
@@ -108,11 +108,11 @@ STATIC mp_obj_t time_mktime(mp_obj_t tuple) {
         mp_obj_get_int(elem[1]), mp_obj_get_int(elem[2]), mp_obj_get_int(elem[3]),
         mp_obj_get_int(elem[4]), mp_obj_get_int(elem[5])));
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(time_mktime_obj, time_mktime);
+static MP_DEFINE_CONST_FUN_OBJ_1(time_mktime_obj, time_mktime);
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_0(time_time_obj, time_time);
+static MP_DEFINE_CONST_FUN_OBJ_0(time_time_obj, time_time);
 
-STATIC const mp_rom_map_elem_t time_module_globals_table[] = {
+static const mp_rom_map_elem_t time_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_utime) },
 
     { MP_ROM_QSTR(MP_QSTR_gmtime), MP_ROM_PTR(&time_localtime_obj) },
@@ -134,7 +134,7 @@ STATIC const mp_rom_map_elem_t time_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_time_ns), MP_ROM_PTR(&mp_utime_time_ns_obj) },
 };
 
-STATIC MP_DEFINE_CONST_DICT(time_module_globals, time_module_globals_table);
+static MP_DEFINE_CONST_DICT(time_module_globals, time_module_globals_table);
 
 const mp_obj_module_t mp_module_utime = {
     .base = { &mp_type_module },

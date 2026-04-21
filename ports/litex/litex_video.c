@@ -29,7 +29,7 @@ typedef struct _litex_video_type_t {
 
 const mp_obj_type_t litex_video_type;
 
-STATIC mp_obj_t litex_video_make_new(const mp_obj_type_t *type_in,
+static mp_obj_t litex_video_make_new(const mp_obj_type_t *type_in,
 		size_t n_args, size_t n_kw, const mp_obj_t *args) {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
 
@@ -53,7 +53,7 @@ STATIC mp_obj_t litex_video_make_new(const mp_obj_type_t *type_in,
     return MP_OBJ_FROM_PTR(self);
 }
 
-STATIC mp_int_t video_get_buffer(mp_obj_t self_in, mp_buffer_info_t *bufinfo, mp_uint_t flags) {
+static mp_int_t video_get_buffer(mp_obj_t self_in, mp_buffer_info_t *bufinfo, mp_uint_t flags) {
     (void)flags;
     litex_video_obj_t *self = MP_OBJ_TO_PTR(self_in);
     bufinfo->buf = self->video_addr;
@@ -69,37 +69,37 @@ void litex_video_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_
       self->num, self->xres, self->yres, self->bitdepth, self->stride, self->video_addr);
 }
 
-STATIC mp_obj_t litex_video_width(mp_obj_t self_in)
+static mp_obj_t litex_video_width(mp_obj_t self_in)
 {
     litex_video_obj_t *self = (litex_video_obj_t *) self_in;
     return MP_OBJ_NEW_SMALL_INT(self->xres);
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(litex_video_width_obj, litex_video_width);
+static MP_DEFINE_CONST_FUN_OBJ_1(litex_video_width_obj, litex_video_width);
 
-STATIC mp_obj_t litex_video_height(mp_obj_t self_in)
+static mp_obj_t litex_video_height(mp_obj_t self_in)
 {
     litex_video_obj_t *self = (litex_video_obj_t *) self_in;
     return MP_OBJ_NEW_SMALL_INT(self->yres);
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(litex_video_height_obj, litex_video_height);
+static MP_DEFINE_CONST_FUN_OBJ_1(litex_video_height_obj, litex_video_height);
 
-STATIC mp_obj_t litex_video_stride(mp_obj_t self_in)
+static mp_obj_t litex_video_stride(mp_obj_t self_in)
 {
     litex_video_obj_t *self = (litex_video_obj_t *) self_in;
     int stride = self->stride/(self->bitdepth/8);
     return MP_OBJ_NEW_SMALL_INT(stride); //expected result is in pixels
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(litex_video_stride_obj, litex_video_stride);
+static MP_DEFINE_CONST_FUN_OBJ_1(litex_video_stride_obj, litex_video_stride);
 
-STATIC mp_obj_t litex_video_bpp(mp_obj_t self_in)
+static mp_obj_t litex_video_bpp(mp_obj_t self_in)
 {
     litex_video_obj_t *self = (litex_video_obj_t *) self_in;
     return MP_OBJ_NEW_SMALL_INT(self->bitdepth);
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(litex_video_bpp_obj, litex_video_bpp);
+static MP_DEFINE_CONST_FUN_OBJ_1(litex_video_bpp_obj, litex_video_bpp);
 
 
-STATIC mp_obj_t litex_video_blitbuf(mp_obj_t self_in, mp_obj_t mem_buf)
+static mp_obj_t litex_video_blitbuf(mp_obj_t self_in, mp_obj_t mem_buf)
 {
     litex_video_obj_t *self = (litex_video_obj_t *) self_in;
 
@@ -115,10 +115,10 @@ STATIC mp_obj_t litex_video_blitbuf(mp_obj_t self_in, mp_obj_t mem_buf)
      *p = pix;
     return mp_const_none;
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_2(litex_video_blitbuf_obj, litex_video_blitbuf);
+static MP_DEFINE_CONST_FUN_OBJ_2(litex_video_blitbuf_obj, litex_video_blitbuf);
 
 
-STATIC const mp_map_elem_t litex_video_locals_dict_table[] = {
+static const mp_map_elem_t litex_video_locals_dict_table[] = {
 	{ MP_OBJ_NEW_QSTR(MP_QSTR_width), (mp_obj_t) &litex_video_width_obj },
 	{ MP_OBJ_NEW_QSTR(MP_QSTR_height), (mp_obj_t) &litex_video_height_obj },
 	{ MP_OBJ_NEW_QSTR(MP_QSTR_bpp), (mp_obj_t) &litex_video_bpp_obj },
@@ -126,7 +126,7 @@ STATIC const mp_map_elem_t litex_video_locals_dict_table[] = {
 	{ MP_OBJ_NEW_QSTR(MP_QSTR_blitbuf), (mp_obj_t) &litex_video_blitbuf_obj },
 };
 
-STATIC MP_DEFINE_CONST_DICT(litex_video_locals_dict, litex_video_locals_dict_table);
+static MP_DEFINE_CONST_DICT(litex_video_locals_dict, litex_video_locals_dict_table);
 
 const mp_obj_type_t litex_video_type = {
 	{ &mp_type_type },

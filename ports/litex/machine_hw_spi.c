@@ -201,7 +201,7 @@ typedef struct _machine_hw_spi_obj_t {
 } machine_hw_spi_obj_t;
 
 // Default pin mappings for the hardware SPI instances
-STATIC const machine_hw_spi_default_pins_t machine_hw_spi_default_pins[] = {
+static const machine_hw_spi_default_pins_t machine_hw_spi_default_pins[] = {
     { .sck = MICROPY_HW_SPI1_SCK, .mosi = MICROPY_HW_SPI1_MOSI, .miso = MICROPY_HW_SPI1_MISO },
 #ifdef MICROPY_HW_SPI2_SCK
     { .sck = MICROPY_HW_SPI2_SCK, .mosi = MICROPY_HW_SPI2_MOSI, .miso = MICROPY_HW_SPI2_MISO },
@@ -210,9 +210,9 @@ STATIC const machine_hw_spi_default_pins_t machine_hw_spi_default_pins[] = {
 
 #define SPI_COUNT (sizeof(machine_hw_spi_default_pins)/sizeof(*machine_hw_spi_default_pins))
 // Static objects mapping to HSPI and VSPI hardware peripherals
-STATIC machine_hw_spi_obj_t machine_hw_spi_obj[SPI_COUNT];
+static machine_hw_spi_obj_t machine_hw_spi_obj[SPI_COUNT];
 
-STATIC void machine_hw_spi_deinit_internal(machine_hw_spi_obj_t *self) {
+static void machine_hw_spi_deinit_internal(machine_hw_spi_obj_t *self) {
 #ifndef ESP32
     //printf("in machine_hw_spi_deinit_internal()");
     spi_deselect(); //force deselect
@@ -258,7 +258,7 @@ STATIC void machine_hw_spi_deinit_internal(machine_hw_spi_obj_t *self) {
 }
 
 
-STATIC void machine_hw_spi_init_internal(
+static void machine_hw_spi_init_internal(
     machine_hw_spi_obj_t *self,
     int8_t host,
     int32_t baudrate,
@@ -422,7 +422,7 @@ STATIC void machine_hw_spi_init_internal(
     self->state = MACHINE_HW_SPI_STATE_INIT;
 }
 
-STATIC void machine_hw_spi_deinit(mp_obj_base_t *self_in) {
+static void machine_hw_spi_deinit(mp_obj_base_t *self_in) {
     machine_hw_spi_obj_t *self = (machine_hw_spi_obj_t *)self_in;
     if (self->state == MACHINE_HW_SPI_STATE_INIT) {
         self->state = MACHINE_HW_SPI_STATE_DEINIT;
@@ -431,7 +431,7 @@ STATIC void machine_hw_spi_deinit(mp_obj_base_t *self_in) {
 }
 
 #ifdef ESP32
-STATIC mp_uint_t gcd(mp_uint_t x, mp_uint_t y) {
+static mp_uint_t gcd(mp_uint_t x, mp_uint_t y) {
     while (x != y) {
         if (x > y) {
             x -= y;
@@ -443,7 +443,7 @@ STATIC mp_uint_t gcd(mp_uint_t x, mp_uint_t y) {
 }
 #endif
 
-STATIC void machine_hw_spi_transfer(mp_obj_base_t *self_in, size_t len, const uint8_t *src, uint8_t *dest) {
+static void machine_hw_spi_transfer(mp_obj_base_t *self_in, size_t len, const uint8_t *src, uint8_t *dest) {
     machine_hw_spi_obj_t *self = MP_OBJ_TO_PTR(self_in);
 
     if (self->state == MACHINE_HW_SPI_STATE_DEINIT) {
@@ -533,7 +533,7 @@ STATIC void machine_hw_spi_transfer(mp_obj_base_t *self_in, size_t len, const ui
 /******************************************************************************/
 // MicroPython bindings for hw_spi
 
-STATIC void machine_hw_spi_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
+static void machine_hw_spi_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
     machine_hw_spi_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_printf(print, "SPI(id=%u, baudrate=%u, polarity=%u, phase=%u, bits=%u, firstbit=%u, sck=%d, mosi=%d, miso=%d)",
         self->host, self->baudrate, self->polarity,
@@ -541,7 +541,7 @@ STATIC void machine_hw_spi_print(const mp_print_t *print, mp_obj_t self_in, mp_p
         self->sck, self->mosi, self->miso);
 }
 
-STATIC void machine_hw_spi_init(mp_obj_base_t *self_in, size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
+static void machine_hw_spi_init(mp_obj_base_t *self_in, size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     machine_hw_spi_obj_t *self = (machine_hw_spi_obj_t *)self_in;
 
     enum { ARG_id, ARG_baudrate, ARG_polarity, ARG_phase, ARG_bits, ARG_firstbit, ARG_sck, ARG_mosi, ARG_miso };
@@ -673,7 +673,7 @@ mp_obj_t machine_hw_spi_make_new(const mp_obj_type_t *type, size_t n_args, size_
     return MP_OBJ_FROM_PTR(self);
 }
 
-STATIC const mp_machine_spi_p_t machine_hw_spi_p = {
+static const mp_machine_spi_p_t machine_hw_spi_p = {
     .init = machine_hw_spi_init,
     .deinit = machine_hw_spi_deinit,
     .transfer = machine_hw_spi_transfer,

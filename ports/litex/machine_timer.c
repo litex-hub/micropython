@@ -82,7 +82,7 @@ typedef struct _machine_timer_obj_t {
 
 const mp_obj_type_t machine_timer_type;
 
-STATIC void machine_timer_disable(machine_timer_obj_t *self);
+static void machine_timer_disable(machine_timer_obj_t *self);
 
 void machine_timer_deinit_all(void) {
     // Disable, deallocate and remove all timers from list
@@ -95,7 +95,7 @@ void machine_timer_deinit_all(void) {
     }
 }
 
-STATIC void machine_timer_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
+static void machine_timer_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
     machine_timer_obj_t *self = self_in;
 
     mp_printf(print, "Timer(pointer=%p; ", self);
@@ -111,7 +111,7 @@ STATIC void machine_timer_print(const mp_print_t *print, mp_obj_t self_in, mp_pr
 #endif
 }
 
-STATIC mp_obj_t machine_timer_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
+static mp_obj_t machine_timer_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
     mp_uint_t index = mp_obj_get_int(args[0]) & 1;
 
@@ -149,7 +149,7 @@ STATIC mp_obj_t machine_timer_make_new(const mp_obj_type_t *type, size_t n_args,
     return self;
 }
 
-STATIC void machine_timer_disable(machine_timer_obj_t *self) {
+static void machine_timer_disable(machine_timer_obj_t *self) {
 #ifdef ESP32
     if (self->handle) {
         timer_pause(self->group, self->index);
@@ -164,7 +164,7 @@ STATIC void machine_timer_disable(machine_timer_obj_t *self) {
 }
 
 #ifndef TIMER0_POLLING
-STATIC void machine_timer_isr(void *self_in) {
+static void machine_timer_isr(void *self_in) {
     machine_timer_obj_t *self = self_in;
 #ifdef ESP32
     timg_dev_t *device = self->group ? &(TIMERG1) : &(TIMERG0);
@@ -215,7 +215,7 @@ void timer0_isr(void) {}
 #endif
 #endif //ESP32
 
-STATIC void machine_timer_enable(machine_timer_obj_t *self) {
+static void machine_timer_enable(machine_timer_obj_t *self) {
 #ifdef ESP32
     timer_config_t config;
     config.alarm_en = TIMER_ALARM_EN;
@@ -278,7 +278,7 @@ STATIC void machine_timer_enable(machine_timer_obj_t *self) {
 #endif //ESP32
 }
 
-STATIC mp_obj_t machine_timer_init_helper(machine_timer_obj_t *self, mp_uint_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
+static mp_obj_t machine_timer_init_helper(machine_timer_obj_t *self, mp_uint_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     enum {
         ARG_mode,
         ARG_callback,
@@ -347,7 +347,7 @@ STATIC mp_obj_t machine_timer_init_helper(machine_timer_obj_t *self, mp_uint_t n
     return mp_const_none;
 }
 
-STATIC mp_obj_t machine_timer_deinit(mp_obj_t self_in) {
+static mp_obj_t machine_timer_deinit(mp_obj_t self_in) {
     machine_timer_disable(self_in);
 #ifndef ESP32
     machine_timer_obj_t *self = self_in;
@@ -355,14 +355,14 @@ STATIC mp_obj_t machine_timer_deinit(mp_obj_t self_in) {
 #endif
     return mp_const_none;
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(machine_timer_deinit_obj, machine_timer_deinit);
+static MP_DEFINE_CONST_FUN_OBJ_1(machine_timer_deinit_obj, machine_timer_deinit);
 
-STATIC mp_obj_t machine_timer_init(size_t n_args, const mp_obj_t *args, mp_map_t *kw_args) {
+static mp_obj_t machine_timer_init(size_t n_args, const mp_obj_t *args, mp_map_t *kw_args) {
     return machine_timer_init_helper(args[0], n_args - 1, args + 1, kw_args);
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_KW(machine_timer_init_obj, 1, machine_timer_init);
+static MP_DEFINE_CONST_FUN_OBJ_KW(machine_timer_init_obj, 1, machine_timer_init);
 
-STATIC mp_obj_t machine_timer_value(mp_obj_t self_in) {
+static mp_obj_t machine_timer_value(mp_obj_t self_in) {
 
     machine_timer_obj_t *self = self_in;
 #ifdef ESP32
@@ -378,9 +378,9 @@ STATIC mp_obj_t machine_timer_value(mp_obj_t self_in) {
     return MP_OBJ_NEW_SMALL_INT(litetimer_get_value_ms(self->tim));
 #endif
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(machine_timer_value_obj, machine_timer_value);
+static MP_DEFINE_CONST_FUN_OBJ_1(machine_timer_value_obj, machine_timer_value);
 
-STATIC const mp_rom_map_elem_t machine_timer_locals_dict_table[] = {
+static const mp_rom_map_elem_t machine_timer_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR___del__), MP_ROM_PTR(&machine_timer_deinit_obj) },
     { MP_ROM_QSTR(MP_QSTR_deinit), MP_ROM_PTR(&machine_timer_deinit_obj) },
     { MP_ROM_QSTR(MP_QSTR_init), MP_ROM_PTR(&machine_timer_init_obj) },
@@ -388,7 +388,7 @@ STATIC const mp_rom_map_elem_t machine_timer_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_ONE_SHOT), MP_ROM_INT(false) },
     { MP_ROM_QSTR(MP_QSTR_PERIODIC), MP_ROM_INT(true) },
 };
-STATIC MP_DEFINE_CONST_DICT(machine_timer_locals_dict, machine_timer_locals_dict_table);
+static MP_DEFINE_CONST_DICT(machine_timer_locals_dict, machine_timer_locals_dict_table);
 
 const mp_obj_type_t machine_timer_type = {
     { &mp_type_type },

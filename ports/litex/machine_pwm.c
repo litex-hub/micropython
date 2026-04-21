@@ -69,7 +69,7 @@ typedef struct _pwm_obj_t {
 #define PWTIMER (LEDC_TIMER_1)
 
 // Config of timer upon which we run all PWM'ed GPIO pins
-STATIC ledc_timer_config_t timer_cfg = {
+static ledc_timer_config_t timer_cfg = {
     .duty_resolution = PWRES,
     .freq_hz = PWFREQ,
     .speed_mode = PWMODE,
@@ -115,10 +115,10 @@ static inline uint32_t litex_pwm_get_width(int pin) { return leds_pwm_width_read
 
 #ifdef PWM_CHANNEL_MAX //only enable if used
 
-STATIC bool pwm_inited = false;
-STATIC int chan_gpio[PWM_CHANNEL_MAX];
+static bool pwm_inited = false;
+static int chan_gpio[PWM_CHANNEL_MAX];
 
-STATIC void pwm_init_internal(void) {
+static void pwm_init_internal(void) {
 #ifdef _DEBUG
     printf("in pwm_init_internal: PWM disable\n");
 #endif
@@ -136,7 +136,7 @@ STATIC void pwm_init_internal(void) {
 #endif
 }
 
-STATIC int set_freq(int pin, int newval) {
+static int set_freq(int pin, int newval) {
     if (newval <= 0) {
         newval = 1;
     }
@@ -171,7 +171,7 @@ STATIC int set_freq(int pin, int newval) {
 /******************************************************************************/
 // MicroPython bindings for PWM
 
-STATIC void pwm_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
+static void pwm_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
     pwm_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_printf(print, "PWM(%u", self->pin);
     if (self->active) {
@@ -185,7 +185,7 @@ STATIC void pwm_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t
     mp_printf(print, ")");
 }
 
-STATIC void pwm_init_helper(pwm_obj_t *self,
+static void pwm_init_helper(pwm_obj_t *self,
     size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     enum { ARG_freq, ARG_duty };
     static const mp_arg_t allowed_args[] = {
@@ -276,7 +276,7 @@ STATIC void pwm_init_helper(pwm_obj_t *self,
 }
 
 
-STATIC mp_obj_t pwm_make_new(const mp_obj_type_t *type,
+static mp_obj_t pwm_make_new(const mp_obj_type_t *type,
     size_t n_args, size_t n_kw, const mp_obj_t *args) {
     mp_arg_check_num(n_args, n_kw, 1, MP_OBJ_FUN_ARGS_MAX, true);
     mp_hal_pin_obj_t pin_id = machine_pin_get_id(args[0]);
@@ -306,14 +306,14 @@ STATIC mp_obj_t pwm_make_new(const mp_obj_type_t *type,
     return MP_OBJ_FROM_PTR(self);
 }
 
-STATIC mp_obj_t pwm_init(size_t n_args,
+static mp_obj_t pwm_init(size_t n_args,
     const mp_obj_t *args, mp_map_t *kw_args) {
     pwm_init_helper(args[0], n_args - 1, args + 1, kw_args);
     return mp_const_none;
 }
 MP_DEFINE_CONST_FUN_OBJ_KW(pwm_init_obj, 1, pwm_init);
 
-STATIC mp_obj_t pwm_deinit(mp_obj_t self_in) {
+static mp_obj_t pwm_deinit(mp_obj_t self_in) {
     pwm_obj_t *self = MP_OBJ_TO_PTR(self_in);
     int chan = self->channel;
 
@@ -348,9 +348,9 @@ STATIC mp_obj_t pwm_deinit(mp_obj_t self_in) {
     }
     return mp_const_none;
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_1(pwm_deinit_obj, pwm_deinit);
+static MP_DEFINE_CONST_FUN_OBJ_1(pwm_deinit_obj, pwm_deinit);
 
-STATIC mp_obj_t pwm_freq(size_t n_args, const mp_obj_t *args) {
+static mp_obj_t pwm_freq(size_t n_args, const mp_obj_t *args) {
     pwm_obj_t *self = MP_OBJ_TO_PTR(args[0]);
     if (n_args == 1) {
         // get
@@ -371,9 +371,9 @@ STATIC mp_obj_t pwm_freq(size_t n_args, const mp_obj_t *args) {
     return mp_const_none;
 }
 
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(pwm_freq_obj, 1, 2, pwm_freq);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(pwm_freq_obj, 1, 2, pwm_freq);
 
-STATIC mp_obj_t pwm_duty_u16(size_t n_args, const mp_obj_t *args) {
+static mp_obj_t pwm_duty_u16(size_t n_args, const mp_obj_t *args) {
     pwm_obj_t *self = MP_OBJ_TO_PTR(args[0]);
     int duty;
 
@@ -402,10 +402,10 @@ STATIC mp_obj_t pwm_duty_u16(size_t n_args, const mp_obj_t *args) {
 #endif
     return mp_const_none;
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(pwm_duty_u16_obj,
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(pwm_duty_u16_obj,
     1, 2, pwm_duty_u16);
 
-STATIC mp_obj_t pwm_duty_ns(size_t n_args, const mp_obj_t *args) {
+static mp_obj_t pwm_duty_ns(size_t n_args, const mp_obj_t *args) {
     pwm_obj_t *self = MP_OBJ_TO_PTR(args[0]);
     int duty;
 
@@ -432,10 +432,10 @@ STATIC mp_obj_t pwm_duty_ns(size_t n_args, const mp_obj_t *args) {
 #endif
     return mp_const_none;
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(pwm_duty_ns_obj,
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(pwm_duty_ns_obj,
     1, 2, pwm_duty_ns);
 
-STATIC const mp_rom_map_elem_t pwm_locals_dict_table[] = {
+static const mp_rom_map_elem_t pwm_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_init), MP_ROM_PTR(&pwm_init_obj) },
     { MP_ROM_QSTR(MP_QSTR_deinit), MP_ROM_PTR(&pwm_deinit_obj) },
     { MP_ROM_QSTR(MP_QSTR_freq), MP_ROM_PTR(&pwm_freq_obj) },
@@ -443,7 +443,7 @@ STATIC const mp_rom_map_elem_t pwm_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_duty_ns), MP_ROM_PTR(&pwm_duty_ns_obj) },
 };
 
-STATIC MP_DEFINE_CONST_DICT(pwm_locals_dict,
+static MP_DEFINE_CONST_DICT(pwm_locals_dict,
     pwm_locals_dict_table);
 
 const mp_obj_type_t machine_pwm_type = {

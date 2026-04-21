@@ -20,7 +20,7 @@ size_t strlen(const uint8_t *s) {
     return ss - s;
 }
 
-STATIC mp_obj_t machine_identifier(void) {
+static mp_obj_t machine_identifier(void) {
     int i;
     uint8_t id[256];
     for(i=0;i<256;i++)
@@ -29,7 +29,7 @@ STATIC mp_obj_t machine_identifier(void) {
 }
 MP_DEFINE_CONST_FUN_OBJ_0(machine_identifier_obj, machine_identifier);
 
-STATIC NORETURN mp_obj_t machine_reset(void) {
+static NORETURN mp_obj_t machine_reset(void) {
     // Modern LiteX no longer auto-generates a per-bitfield writer
     // ctrl_reset_soc_rst_write(); write the whole reset register and use the
     // CSR-generated offset macro so the correct bit is set regardless of
@@ -40,11 +40,11 @@ STATIC NORETURN mp_obj_t machine_reset(void) {
 }
 MP_DEFINE_CONST_FUN_OBJ_0(machine_reset_obj, machine_reset);
 
-STATIC mp_obj_t machine_freq(size_t n_args, const mp_obj_t *args) {
+static mp_obj_t machine_freq(size_t n_args, const mp_obj_t *args) {
     return MP_OBJ_NEW_SMALL_INT(CONFIG_CLOCK_FREQUENCY);
 }
-STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(machine_freq_obj, 0, 1, machine_freq);
-STATIC const mp_rom_map_elem_t machine_module_globals_table[] = {
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(machine_freq_obj, 0, 1, machine_freq);
+static const mp_rom_map_elem_t machine_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__),   MP_ROM_QSTR(MP_QSTR_umachine) },
     { MP_ROM_QSTR(MP_QSTR_identifier), MP_ROM_PTR(&machine_identifier_obj) },
     { MP_ROM_QSTR(MP_QSTR_reset),      MP_ROM_PTR(&machine_reset_obj) },
@@ -73,7 +73,7 @@ STATIC const mp_rom_map_elem_t machine_module_globals_table[] = {
 #endif
 };
 
-STATIC MP_DEFINE_CONST_DICT(machine_module_globals, machine_module_globals_table);
+static MP_DEFINE_CONST_DICT(machine_module_globals, machine_module_globals_table);
 
 const mp_obj_module_t mp_module_machine = {
     .base = { &mp_type_module },
