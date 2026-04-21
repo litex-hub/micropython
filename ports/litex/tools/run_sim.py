@@ -1,0 +1,347 @@
+#!/usr/bin/env python3
+#
+# Run a MicroPython test (or set of tests) in a LiteX simulation.
+#
+# The harness spawns `litex_sim` with `--uart-pty --non-interactive`, waits
+# for the UART pseudo-terminal to appear, waits for the MicroPython REPL
+# banner, then drives each test through the raw REPL protocol. On first
+# failure it prints the captured output and exits non-zero.
+#
+# We don't reuse tools/pyboard.py because its read_until() uses a 10 s
+# timeout per step, which is often too tight for a 1 MHz simulated CPU
+# where each round-trip can take tens of seconds. This client uses generous
+# sim-scale timeouts and is otherwise a minimal raw-REPL driver.
+#
+# Typical usage from ports/litex/:
+#
+#     tools/run_sim.py --firmware build/firmware.bin test/test_hello_world.py
+#
+# Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
+# SPDX-License-Identifier: BSD-2-Clause
+
+import argparse
+import atexit
+import os
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+PORT_DIR = Path(__file__).resolve().parent.parent
+
+DEFAULT_PTY = "/tmp/litex_pty0"
+DEFAULT_OUTPUT_DIR = "/tmp/litex_mpy_sim"
+DEFAULT_FIRMWARE = PORT_DIR / "build" / "firmware.bin"
+# Sim startup time is dominated by one-time Verilator C++ compilation, which
+# on a typical laptop takes ~2 minutes the first time and is free afterward
+# (litex_sim reuses the obj_dir). The REPL wait only starts once Verilator
+# is done building, so the short timeout there is fine.
+SIM_BUILD_TIMEOUT_S = 600
+REPL_READY_TIMEOUT_S = 300
+PTY_APPEAR_TIMEOUT_S = 30
+# At a simulated 1 MHz CPU the UART runs at ~1100 baud effective (sys_clk_freq
+# / baud / 10), so sending a 500-byte script takes tens of seconds and a full
+# round-trip through MicroPython's parser + compiler + execute can easily
+# take several minutes. Be generous.
+RAW_REPL_STEP_TIMEOUT_S = 600
+TEST_EXEC_TIMEOUT_S = 600
+# Log marker printed by litex_sim right before it launches the Vsim binary.
+SIM_BUILD_DONE_MARKER = "make: Leaving directory '"
+# REPL tokens we key off of.
+FRIENDLY_PROMPT = b">>> "
+RAW_REPL_BANNER = b"raw REPL; CTRL-B to exit\r\n>"
+SOFT_REBOOT = b"soft reboot\r\n"
+
+
+def wait_for_path(path, timeout):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if os.path.exists(path):
+            return True
+        time.sleep(0.2)
+    return False
+
+
+def wait_for_log_marker(log_path, marker, timeout):
+    """Tail a log file until a specific substring appears."""
+    deadline = time.monotonic() + timeout
+    seen = ""
+    while not os.path.exists(log_path) and time.monotonic() < deadline:
+        time.sleep(0.2)
+    if not os.path.exists(log_path):
+        return False
+    with open(log_path, "r") as f:
+        while time.monotonic() < deadline:
+            chunk = f.read()
+            if chunk:
+                seen += chunk
+                if marker in seen:
+                    return True
+            else:
+                time.sleep(0.5)
+    return False
+
+
+class PtyRepl:
+    """Minimal raw-REPL client over a PTY, tuned for slow simulators."""
+
+    def __init__(self, path, verbose=False):
+        self.path = path
+        self.fd = os.open(path, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+        self.verbose = verbose
+        self.rx_buf = b""
+
+    def close(self):
+        os.close(self.fd)
+
+    def write(self, data):
+        if self.verbose:
+            sys.stderr.write(f"[tx {data!r}]\n")
+            sys.stderr.flush()
+        os.write(self.fd, data)
+
+    def _read_available(self):
+        try:
+            chunk = os.read(self.fd, 65536)
+        except BlockingIOError:
+            chunk = b""
+        if chunk and self.verbose:
+            sys.stderr.buffer.write(chunk)
+            sys.stderr.flush()
+        return chunk
+
+    def read_until(self, token, timeout):
+        """Keep reading until `token` has been seen, or timeout expires."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            # Check the buffer first: multiple tokens can arrive in a single
+            # read, and after consuming one the next may already be waiting.
+            if token in self.rx_buf:
+                pos = self.rx_buf.index(token) + len(token)
+                consumed, self.rx_buf = self.rx_buf[:pos], self.rx_buf[pos:]
+                return consumed
+            chunk = self._read_available()
+            if chunk:
+                self.rx_buf += chunk
+            else:
+                time.sleep(0.1)
+        return None
+
+    def drain(self, duration=0.5):
+        """Read and discard whatever is currently buffered."""
+        end = time.monotonic() + duration
+        while time.monotonic() < end:
+            chunk = self._read_available()
+            if not chunk:
+                time.sleep(0.1)
+        self.rx_buf = b""
+
+    def wait_for_friendly_repl(self, timeout):
+        """Wait until we see a friendly-REPL banner or prompt."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            chunk = self._read_available()
+            if chunk:
+                self.rx_buf += chunk
+                if b"MicroPython" in self.rx_buf or FRIENDLY_PROMPT in self.rx_buf:
+                    return True
+            else:
+                time.sleep(0.1)
+        return False
+
+    def enter_raw_repl(self, step_timeout):
+        # Ensure we're in friendly REPL, interrupt any running code, then
+        # switch to raw REPL. We intentionally skip pyboard.py's optional
+        # ctrl-D soft-reset step: our REPL has just booted so there's no
+        # running code to clear, and on 1.16-era MicroPython the response to
+        # ctrl-D in an empty raw-REPL buffer is 'OK\\x04\\x04>' rather than
+        # 'soft reboot', which would cause a false timeout.
+        self.write(b"\r\x02")       # ctrl-B: exit raw REPL if we were in one
+        self.write(b"\r\x03\x03")   # ctrl-C twice: interrupt any running code
+        self.drain(duration=2.0)
+        self.write(b"\r\x01")       # ctrl-A: enter raw REPL
+        if self.read_until(RAW_REPL_BANNER, step_timeout) is None:
+            return False
+        return True
+
+    def exec_script(self, source, step_timeout, exec_timeout):
+        """Send a script via raw REPL, return (stdout, stderr)."""
+        # Paste the script.
+        data = source.encode("utf-8") if isinstance(source, str) else source
+        # Use raw-paste by default (faster for large scripts), but keep simple
+        # enough: we just write all bytes then ctrl-D.
+        self.write(data)
+        self.write(b"\x04")
+        # Expect the leading 'OK' that signals script accepted.
+        if self.read_until(b"OK", step_timeout) is None:
+            return None, b"[run_sim] timed out waiting for 'OK' after script"
+        # stdout runs until 0x04 (end-of-stdout), then stderr until the next
+        # 0x04, then the '>' prompt marking end of exec.
+        stdout = self.read_until(b"\x04", exec_timeout)
+        if stdout is None:
+            return None, b"[run_sim] timed out waiting for stdout EOT"
+        stdout = stdout[:-1]  # strip the 0x04
+        stderr = self.read_until(b"\x04", exec_timeout)
+        if stderr is None:
+            return stdout, b"[run_sim] timed out waiting for stderr EOT"
+        stderr = stderr[:-1]
+        # Next '>' is the raw-REPL prompt, ready for another command.
+        self.read_until(b">", step_timeout)
+        return stdout, stderr
+
+
+def spawn_sim(args):
+    cmd = [
+        sys.executable, "-m", "litex.tools.litex_sim",
+        "--cpu-type", args.cpu_type,
+        "--integrated-main-ram-size", hex(args.ram_size),
+        "--libc-mode", "full",
+        "--output-dir", args.output_dir,
+        "--ram-init", str(args.firmware),
+        "--uart-pty",
+        "--uart-pty-path", args.pty,
+        "--non-interactive",
+        "--opt-level", args.opt_level,
+        # Single-threaded Verilator runtime: for a small SoC the inter-thread
+        # coordination overhead easily dominates, making 1 thread faster than
+        # many.
+        "--threads", str(args.threads),
+    ]
+    log = open(args.log, "w")
+    print("[run_sim] launching:", " ".join(cmd), file=sys.stderr)
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.DEVNULL,
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    return proc, log
+
+
+def kill_sim(proc):
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+
+
+def strip_comments(source):
+    """Drop full-line '#' comments and blank lines.
+
+    A 1 MHz sim UART delivers ~100 bytes/s, so every comment we don't send
+    saves roughly a second of wall-clock wait. We deliberately only strip
+    *full-line* comments — inline comments and docstrings are left alone so
+    we never alter the test's actual behavior or formatting.
+    """
+    kept = []
+    for line in source.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("#") or not stripped:
+            continue
+        kept.append(line)
+    return "\n".join(kept) + "\n"
+
+
+def run_tests(repl, tests, step_timeout, exec_timeout):
+    failures = []
+    for test in tests:
+        source = strip_comments(Path(test).read_text())
+        print(f"[run_sim] running {test} ({len(source)} bytes after stripping "
+              f"comments)", file=sys.stderr)
+        stdout, stderr = repl.exec_script(source, step_timeout, exec_timeout)
+        if stdout is not None:
+            sys.stdout.write(stdout.decode("utf-8", errors="replace"))
+            sys.stdout.flush()
+        if stderr:
+            sys.stderr.write(stderr.decode("utf-8", errors="replace"))
+            sys.stderr.flush()
+        if stdout is None or stderr:
+            failures.append(test)
+    return failures
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Run MicroPython tests inside a LiteX simulation."
+    )
+    parser.add_argument("tests", nargs="+", help="Python test files to execute on the sim.")
+    parser.add_argument("--firmware", default=str(DEFAULT_FIRMWARE),
+                        help=f"MicroPython firmware binary (default: {DEFAULT_FIRMWARE}).")
+    parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR,
+                        help=f"litex_sim output dir (default: {DEFAULT_OUTPUT_DIR}).")
+    parser.add_argument("--pty", default=DEFAULT_PTY,
+                        help=f"PTY path exposed by litex_sim (default: {DEFAULT_PTY}).")
+    parser.add_argument("--cpu-type", default="vexriscv")
+    parser.add_argument("--ram-size", type=lambda s: int(s, 0), default=0x01000000,
+                        help="Integrated main RAM size (default: 16 MiB). MicroPython "
+                             "zeroes a GC alloc table proportional to this size at "
+                             "startup; a simulated 1 MHz CPU needs minutes for 256 MiB, "
+                             "seconds for 16 MiB.")
+    parser.add_argument("--opt-level", default="O3",
+                        help="Verilator -O level for the compiled sim model (default: O3).")
+    parser.add_argument("--threads", type=int, default=1,
+                        help="Verilator runtime thread count (default: 1; for "
+                             "a small SoC more threads usually hurt).")
+    parser.add_argument("--log", default="/tmp/litex_sim.log",
+                        help="File to redirect litex_sim stdout/stderr into.")
+    parser.add_argument("--keep-sim", action="store_true",
+                        help="Leave litex_sim running after the tests (for debugging).")
+    parser.add_argument("--verbose", action="store_true",
+                        help="Stream the sim UART bytes to stderr while driving the REPL.")
+    args = parser.parse_args()
+
+    if not Path(args.firmware).is_file():
+        sys.exit(f"firmware not found: {args.firmware} (did you run `make`?)")
+
+    try:
+        os.unlink(args.pty)
+    except FileNotFoundError:
+        pass
+
+    proc, log = spawn_sim(args)
+    if not args.keep_sim:
+        atexit.register(kill_sim, proc)
+
+    print(f"[run_sim] waiting for Verilator build to finish (up to "
+          f"{SIM_BUILD_TIMEOUT_S}s, see {args.log})", file=sys.stderr)
+    if not wait_for_log_marker(args.log, SIM_BUILD_DONE_MARKER, SIM_BUILD_TIMEOUT_S):
+        sys.exit(f"timed out waiting for Verilator build (see {args.log})")
+    print("[run_sim] Verilator build done, waiting for REPL", file=sys.stderr)
+
+    if not wait_for_path(args.pty, PTY_APPEAR_TIMEOUT_S):
+        sys.exit(f"timed out waiting for {args.pty} to appear (see {args.log})")
+
+    repl = PtyRepl(args.pty, verbose=args.verbose)
+    try:
+        if not repl.wait_for_friendly_repl(REPL_READY_TIMEOUT_S):
+            sys.exit(f"timed out waiting for MicroPython REPL on {args.pty} "
+                     f"(see {args.log})")
+        print("[run_sim] REPL up, entering raw REPL", file=sys.stderr)
+        if not repl.enter_raw_repl(RAW_REPL_STEP_TIMEOUT_S):
+            sys.exit(f"failed to enter raw REPL (see {args.log})")
+        print("[run_sim] raw REPL entered, executing tests", file=sys.stderr)
+
+        failures = run_tests(repl, args.tests,
+                             RAW_REPL_STEP_TIMEOUT_S, TEST_EXEC_TIMEOUT_S)
+    finally:
+        repl.close()
+        log.close()
+
+    if failures:
+        print(f"[run_sim] FAILED: {len(failures)}/{len(args.tests)}", file=sys.stderr)
+        for t in failures:
+            print(f"  - {t}", file=sys.stderr)
+        sys.exit(1)
+    print(f"[run_sim] OK: {len(args.tests)}/{len(args.tests)}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()
