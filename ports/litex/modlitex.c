@@ -27,5 +27,8 @@ static MP_DEFINE_CONST_DICT(litex_module_globals, litex_module_globals_table);
 
 const mp_obj_module_t mp_module_litex = {
     .base = { &mp_type_module },
-    .globals = (mp_obj_dict_t*)&litex_module_globals,
+    .globals = (mp_obj_dict_t *)&litex_module_globals,
 };
+
+// Register the module so `import litex` works out of the box.
+MP_REGISTER_MODULE(MP_QSTR_litex, mp_module_litex);

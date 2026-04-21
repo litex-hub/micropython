@@ -102,7 +102,6 @@ SRC_C = \
 	main.c \
 	isr.c \
 	mphalport.c \
-	moduos.c \
 	modlitex.c \
 	litex_led.c \
 	litex_dma.c \
