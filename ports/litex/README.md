@@ -152,4 +152,13 @@ LiteX SoC
 >>> litex.read32(litex.CSR_BASE + 0x1000)
 0xcafe0001
 >>> litex.write32(litex.CSR_BASE + 0x1000, 0)
+
+>>> # By-name CSR access — addresses come from a build-time lookup table
+>>> # generated from the SoC's csr.json, so it stays in sync with the
+>>> # hardware. Read-only CSRs raise on write, write-only on read.
+>>> litex.csrs()[:3]
+['ctrl_bus_errors', 'ctrl_reset', 'ctrl_scratch']
+>>> litex.csr_write('ctrl_scratch', 42)
+>>> litex.csr_read('ctrl_scratch')
+42
 ```
