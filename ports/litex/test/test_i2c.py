@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-2-Clause
 
-from umachine import Pin, SoftI2C
+from machine import Pin, SoftI2C
 
 # Create Pins.
 scl = Pin(0, Pin.OUT)

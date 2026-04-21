@@ -8,7 +8,7 @@
 # Copyright (c) 2021 Victor Suarez Rovere <suarezvictor@gmail.com>
 # SPDX-License-Identifier: BSD-2-Clause
 
-from umachine import Pin, SoftI2C
+from machine import Pin, SoftI2C
 scl = Pin(3, Pin.OUT) 
 sda = Pin(4, Pin.OUT) 
 i2c = SoftI2C(scl, sda, freq=100000)

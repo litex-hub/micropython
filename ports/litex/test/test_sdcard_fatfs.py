@@ -4,8 +4,8 @@
 #
 # SPDX-License-Identifier: BSD-2-Clause
 
-import uos as os
-from umachine import SDCard
+import os as os
+from machine import SDCard
 
 # Open SDCard.
 sd = SDCard()

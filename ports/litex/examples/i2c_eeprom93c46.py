@@ -7,7 +7,7 @@
 # Copyright (c) 2021 Victor Suarez Rovere <suarezvictor@gmail.com>
 # SPDX-License-Identifier: BSD-2-Clause
 
-from umachine import Pin, SoftSPI
+from machine import Pin, SoftSPI
 sck  = Pin(3, Pin.OUT)
 mosi = Pin(4, Pin.OUT)
 miso = Pin(5, Pin.IN)

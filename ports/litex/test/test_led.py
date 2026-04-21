@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-2-Clause
 
-import utime
+import time
 from litex import LED
 
 # Create Led.
@@ -14,7 +14,7 @@ led.on()
 
 # Toggle Led every 200ms.
 for i in range(8):
-	utime.sleep(0.2)
+	time.sleep(0.2)
 	led.toggle()
 
 # Set Led Off.

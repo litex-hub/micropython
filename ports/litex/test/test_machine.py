@@ -4,13 +4,13 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 import gc
-import umachine
+import machine
 
 # Display LiteX SoC identifier.
-print(umachine.identifier().decode("utf-8"))
+print(machine.identifier().decode("utf-8"))
 
 # Display sys_clk_freq.
-print("sys_clk_freq: {}MHz".format(umachine.freq()/1e6))
+print("sys_clk_freq: {}MHz".format(machine.freq()/1e6))
 
 # Display free memory.
 gc.collect()

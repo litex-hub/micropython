@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-2-Clause
 
-from umachine import Pin, SoftSPI, SPI
+from machine import Pin, SoftSPI, SPI
 import ustruct as struct
 
 SOFTSPI = False #select SoftSPI or hardware SPI

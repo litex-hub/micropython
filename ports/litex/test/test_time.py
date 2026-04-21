@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-2-Clause
 
-import umachine
-from utime import *
+import machine
+from time import *
 
 print("Test ms precision...")
 t0 = ticks_ms()
@@ -30,7 +30,7 @@ assert(t < 1001000000 and t > 999000000)
 print("ns precision : {}.".format(t/1000000000))
 
 print("Test Tick CPU prevision...")
-f = umachine.freq()
+f = machine.freq()
 t0 = ticks_cpu()
 sleep_us(1000000)
 t = ticks_diff(ticks_cpu(), t0)
