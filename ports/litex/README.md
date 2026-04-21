@@ -1,15 +1,28 @@
 MicroPython port to the LiteX SoC FPGA framework
 ================================================
 
-This is a port of MicroPython to the LiteX SoC FPGA framework. LiteX allows easy creation of SoCs
-on FPGAs and use of various CPU ISAs/Implementations (VexRiscv, Mor1kx, LM32) and peripherals. By
-combining the flexibility of LiteX to define the hardware and the flexibility of MicroPython to
-control it, very powerful and flexible systems can be created!
+This is a port of MicroPython to the LiteX SoC FPGA framework. LiteX allows
+easy creation of SoCs on FPGAs with various CPU ISAs/implementations
+(VexRiscv, NaxRiscv, Mor1kx, ...) and peripherals. Combining LiteX's
+flexibility for hardware definition with MicroPython's for control gives
+a powerful, interactive bring-up environment.
+
+The port tracks **upstream MicroPython 1.29**.
 
 Supported features:
 - REPL (Python prompt) over UART.
-- Minimal umachine support (reset, freq, identifier).
-- LiteX pheripherals support (leds, GPIO, SPI/SoftSPI, SoftI2C, PWM, Timer, DMA, Video, SD card, etc.).
+- Standard `machine` module: `Pin`, `SPI`/`SoftSPI`, `SoftI2C`, `PWM`,
+  `Timer`, `SDCard`, `mem8/16/32`, plus `reset()`, `freq()`, and the
+  LiteX-specific `identifier()`. Peripheral classes are gated by the
+  corresponding CSR, so `machine.Pin` only appears on SoCs built with
+  a GPIO core, etc.
+- Standard `time` and `os` modules with the LiteX timer HAL underneath.
+- LiteX-specific `litex` module for build metadata (sys_clk_freq, git
+  sha, bus standard) and raw MMIO: `litex.read32(addr)`,
+  `litex.write32(addr, value)`, `litex.info()`.
+- Optional peripheral wrappers under `litex.*`: `LED`, `DMAWriter`,
+  `DMAReader`, `Video`.
+- FatFS over SD card (when the SoC includes an `SDCore` or `SPISDCard`).
 
 Setting up LiteX
 ----------------
@@ -51,14 +64,15 @@ And just let LiteX boot from it!...
 
 ..or use one of the other available boot methods described at https://github.com/enjoy-digital/litex/wiki/Load-Application-Code-To-CPU
 
-Execute examples in RAW-REPL mode (through Pyboard)
----------------------------------------------------
-With Micropython firmware loaded on the SoC, tests can be run with:
+Running tests against real hardware
+-----------------------------------
+With the MicroPython firmware booted on the SoC, the tests under `test/`
+can be driven with the standard `pyboard.py` RAW-REPL client:
 ```bash
 $ cd test
 $ python3 ../../../tools/pyboard.py -d /dev/ttyUSBX test_hello_world.py
 $ python3 ../../../tools/pyboard.py -d /dev/ttyUSBX test_machine.py
-$ etc...
+$ # ... etc.
 ```
 
 Running tests under LiteX-sim (no FPGA needed)
@@ -101,3 +115,41 @@ A 16 MiB main RAM is the default because MicroPython zeroes a GC alloc
 table proportional to the heap at startup and a simulated 1 MHz CPU
 takes tens of minutes to do that on 256 MiB. Passing `--ram-size=...`
 to `tools/run_sim.py` overrides it.
+
+The sim's UART runs at an effective ~1100 baud, so scripts larger than a
+hundred bytes or so hit the raw-REPL send timeout. Hardware has no such
+limit; large tests like `test_machine.py` / `test_time.py` are intended
+to be run against a real board via `pyboard.py`.
+
+The `litex` module
+------------------
+
+`litex` is the port's home for LiteX-specific helpers. Everything in it
+is reflected from the SoC's generated C headers (`generated/csr.h`,
+`generated/mem.h`, `generated/git.h`), so it tracks the actual SoC build
+exactly — no hand-maintained duplication.
+
+```python
+>>> import litex
+>>> litex.sys_clk_freq          # Hz
+100000000
+>>> litex.git_sha1()
+'f377764d7'
+>>> litex.bus_standard()
+'wishbone'
+>>> hex(litex.CSR_BASE)
+'0xf0000000'
+>>> litex.info()
+LiteX SoC
+  LiteX git: f377764d7
+  bus:       wishbone
+  clock:     100000000 Hz
+  CSR base:  0xf0000000
+  RAM base:  0x40000000 (size 0x10000000)
+  ROM base:  0x00000000 (size 0x00020000)
+
+>>> # Raw MMIO — useful during peripheral bring-up before a class exists.
+>>> litex.read32(litex.CSR_BASE + 0x1000)
+0xcafe0001
+>>> litex.write32(litex.CSR_BASE + 0x1000, 0)
+```
