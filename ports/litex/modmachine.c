@@ -1,83 +1,117 @@
 // This file is Copyright (c) 2017-2021 Fupy/LiteX-MicroPython Developers
 // This file is Copyright (c) 2021 Victor Suarez Rovere <suarezvictor@gmail.com>
+// This file is Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
 // License: BSD-2-Clause
-
-#include "py/runtime.h"
-#include "py/obj.h"
-#include "extmod/modmachine.h"
-#include "modmachine.h"
+//
+// This file is never compiled standalone: it's included directly from
+// extmod/modmachine.c via MICROPY_PY_MACHINE_INCLUDEFILE.
 
 #include <generated/csr.h>
 #include <generated/soc.h>
+#include <generated/mem.h>
 
-#if MICROPY_PY_MACHINE
+// Forward declarations for port-specific peripheral types (defined in sibling
+// .c files) — referenced from MICROPY_PY_MACHINE_EXTRA_GLOBALS below.
+#ifdef CSR_GPIO_BASE
+extern const mp_obj_type_t machine_pin_type;
+#endif
+#ifdef USE_HARDWARE_SPI
+extern const mp_obj_type_t machine_hw_spi_type;
+#endif
+#ifdef CSR_TIMER0_BASE
+extern const mp_obj_type_t machine_timer_type;
+#endif
+#ifdef CSR_LEDS_PWM_ENABLE_ADDR
+extern const mp_obj_type_t machine_pwm_type;
+#endif
+#if MICROPY_HW_ENABLE_SDCARD
+extern const mp_obj_type_t machine_sdcard_type;
+#endif
 
-size_t strlen(const uint8_t *s) {
-    const uint8_t *ss = s;
-    while (*ss) {
-        ++ss;
-    }
-    return ss - s;
-}
-
+// machine.identifier() — read the LiteX identifier CSR ROM as a bytes object.
 static mp_obj_t machine_identifier(void) {
-    int i;
     uint8_t id[256];
-    for(i=0;i<256;i++)
-        id[i] = MMPTR(CSR_IDENTIFIER_MEM_BASE + 4*i);
-    return mp_obj_new_bytes(id, strlen(id));
+    size_t n = 0;
+    for (size_t i = 0; i < sizeof(id); i++) {
+        uint8_t c = MMPTR(CSR_IDENTIFIER_MEM_BASE + 4 * i);
+        if (!c) {
+            break;
+        }
+        id[n++] = c;
+    }
+    return mp_obj_new_bytes(id, n);
 }
-MP_DEFINE_CONST_FUN_OBJ_0(machine_identifier_obj, machine_identifier);
+static MP_DEFINE_CONST_FUN_OBJ_0(machine_identifier_obj, machine_identifier);
 
-static NORETURN mp_obj_t machine_reset(void) {
-    // Modern LiteX no longer auto-generates a per-bitfield writer
-    // ctrl_reset_soc_rst_write(); write the whole reset register and use the
-    // CSR-generated offset macro so the correct bit is set regardless of
-    // future additions to ctrl.reset (cpu_rst, etc.).
+// machine.freq() — LiteX SoCs have a single fixed sys_clk_freq baked in at
+// SoC-generation time; expose it but don't pretend we can retune it.
+static mp_obj_t machine_freq(void) {
+    return MP_OBJ_NEW_SMALL_INT(CONFIG_CLOCK_FREQUENCY);
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(machine_freq_obj, machine_freq);
+
+// Per-SoC peripheral entries, each gated by the corresponding CSR so the
+// Python-visible module always matches the hardware the SoC was built with.
+#ifdef CSR_GPIO_BASE
+#define MACHINE_PIN_ENTRY \
+    { MP_ROM_QSTR(MP_QSTR_Pin), MP_ROM_PTR(&machine_pin_type) },
+#else
+#define MACHINE_PIN_ENTRY
+#endif
+
+#ifdef USE_HARDWARE_SPI
+#define MACHINE_SPI_ENTRY \
+    { MP_ROM_QSTR(MP_QSTR_SPI), MP_ROM_PTR(&machine_hw_spi_type) },
+#else
+#define MACHINE_SPI_ENTRY
+#endif
+
+#ifdef CSR_TIMER0_BASE
+#define MACHINE_TIMER_ENTRY \
+    { MP_ROM_QSTR(MP_QSTR_Timer), MP_ROM_PTR(&machine_timer_type) },
+#else
+#define MACHINE_TIMER_ENTRY
+#endif
+
+#ifdef CSR_LEDS_PWM_ENABLE_ADDR
+#define MACHINE_PWM_ENTRY \
+    { MP_ROM_QSTR(MP_QSTR_PWM), MP_ROM_PTR(&machine_pwm_type) },
+#else
+#define MACHINE_PWM_ENTRY
+#endif
+
+#if MICROPY_HW_ENABLE_SDCARD
+#define MACHINE_SDCARD_ENTRY \
+    { MP_ROM_QSTR(MP_QSTR_SDCard), MP_ROM_PTR(&machine_sdcard_type) },
+#else
+#define MACHINE_SDCARD_ENTRY
+#endif
+
+#define MICROPY_PY_MACHINE_EXTRA_GLOBALS \
+    { MP_ROM_QSTR(MP_QSTR_identifier), MP_ROM_PTR(&machine_identifier_obj) }, \
+    { MP_ROM_QSTR(MP_QSTR_freq),       MP_ROM_PTR(&machine_freq_obj) }, \
+    MACHINE_PIN_ENTRY                                                   \
+    MACHINE_SPI_ENTRY                                                   \
+    MACHINE_TIMER_ENTRY                                                 \
+    MACHINE_PWM_ENTRY                                                   \
+    MACHINE_SDCARD_ENTRY
+
+// Port callbacks required by extmod/modmachine.c.
+//
+// Modern LiteX no longer generates per-bitfield writers, so we use the whole
+// ctrl.reset register plus the CSR-provided offset macro so the correct bit
+// is set regardless of future additions to ctrl.reset (cpu_rst, ...).
+MP_NORETURN static void mp_machine_reset(void) {
     ctrl_reset_write(1 << CSR_CTRL_RESET_SOC_RST_OFFSET);
     for (;;) {
     }
 }
-MP_DEFINE_CONST_FUN_OBJ_0(machine_reset_obj, machine_reset);
 
-static mp_obj_t machine_freq(size_t n_args, const mp_obj_t *args) {
-    return MP_OBJ_NEW_SMALL_INT(CONFIG_CLOCK_FREQUENCY);
+static mp_int_t mp_machine_reset_cause(void) {
+    // LiteX doesn't expose a reset-cause latch in the standard ctrl block.
+    return 0;
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(machine_freq_obj, 0, 1, machine_freq);
-static const mp_rom_map_elem_t machine_module_globals_table[] = {
-    { MP_ROM_QSTR(MP_QSTR___name__),   MP_ROM_QSTR(MP_QSTR_umachine) },
-    { MP_ROM_QSTR(MP_QSTR_identifier), MP_ROM_PTR(&machine_identifier_obj) },
-    { MP_ROM_QSTR(MP_QSTR_reset),      MP_ROM_PTR(&machine_reset_obj) },
-    { MP_ROM_QSTR(MP_QSTR_freq),       MP_ROM_PTR(&machine_freq_obj) },
 
-    { MP_ROM_QSTR(MP_QSTR_mem8),  MP_ROM_PTR(&machine_mem8_obj) },
-    { MP_ROM_QSTR(MP_QSTR_mem16), MP_ROM_PTR(&machine_mem16_obj) },
-    { MP_ROM_QSTR(MP_QSTR_mem32), MP_ROM_PTR(&machine_mem32_obj) },
-
-#ifdef CSR_GPIO_BASE
-    { MP_ROM_QSTR(MP_QSTR_Pin), MP_ROM_PTR(&machine_pin_type) },
-    { MP_ROM_QSTR(MP_QSTR_SoftI2C), MP_ROM_PTR(&mp_machine_soft_i2c_type) },
-    { MP_ROM_QSTR(MP_QSTR_SoftSPI), MP_ROM_PTR(&mp_machine_soft_spi_type) },
-#endif
-#ifdef USE_HARDWARE_SPI
-    { MP_ROM_QSTR(MP_QSTR_SPI),     MP_ROM_PTR(&machine_hw_spi_type) },
-#endif
-#ifdef CSR_TIMER0_BASE
-    { MP_ROM_QSTR(MP_QSTR_Timer), MP_ROM_PTR(&machine_timer_type) },
-#endif
-#ifdef CSR_LEDS_PWM_ENABLE_ADDR // CSR_LEDS_PWM_ENABLE_ADDR is just for tsting
-    { MP_ROM_QSTR(MP_QSTR_PWM), MP_ROM_PTR(&machine_pwm_type) },
-#endif
-#if MICROPY_HW_ENABLE_SDCARD
-    { MP_ROM_QSTR(MP_QSTR_SDCard), MP_ROM_PTR(&machine_sdcard_type) },
-#endif
-};
-
-static MP_DEFINE_CONST_DICT(machine_module_globals, machine_module_globals_table);
-
-const mp_obj_module_t mp_module_machine = {
-    .base = { &mp_type_module },
-    .globals = (mp_obj_dict_t*)&machine_module_globals,
-};
-
-#endif // MICROPY_PY_MACHINE
+static void mp_machine_idle(void) {
+    // VexRiscv 'minimal' has no WFI; nothing useful to do here.
+}

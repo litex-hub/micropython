@@ -21,11 +21,17 @@
 #define MICROPY_PY_BUILTINS_MEMORYVIEW (1)
 
 // extended modules
+#define MICROPY_PY_MACHINE_INCLUDEFILE      "ports/litex/modmachine.c"
+#define MICROPY_PY_MACHINE_RESET            (1)
 #define MICROPY_PY_MACHINE_SPI              (1)
 #define MICROPY_PY_MACHINE_SPI_MSB          (1)
 #define MICROPY_PY_MACHINE_SPI_LSB          (0)
+#define MICROPY_PY_MACHINE_SOFTSPI          (1)
 #define MICROPY_PY_MACHINE_I2C              (1)
-#define MICROPY_PY_UTIME_MP_HAL             (1)
+#define MICROPY_PY_MACHINE_SOFTI2C          (1)
+#define MICROPY_PY_TIME                     (1)
+#define MICROPY_PY_TIME_GMTIME_LOCALTIME_MKTIME (1)
+#define MICROPY_PY_TIME_TIME_TIME_NS        (1)
 
 // Type definitions for the specific machine
 
@@ -107,19 +113,12 @@ static inline void mp_hal_delay_us_fast(mp_uint_t us) { us*=4; volatile static u
 #define mp_hal_delay_us(us)   mp_hal_delay_us_fast(us)
 
 
-// Extra built in names to add to the global namespace
-#define MICROPY_PORT_BUILTINS \
-    { MP_OBJ_NEW_QSTR(MP_QSTR_open), (mp_obj_t)&mp_builtin_open_obj },
-
-extern const struct _mp_obj_module_t mp_module_machine;
-extern const struct _mp_obj_module_t mp_module_litex;
-extern const struct _mp_obj_module_t mp_module_utime;
-extern const struct _mp_obj_module_t uos_module;
-#define MICROPY_PORT_BUILTIN_MODULES \
-    { MP_ROM_QSTR(MP_QSTR_umachine), MP_ROM_PTR(&mp_module_machine) }, \
-    { MP_ROM_QSTR(MP_QSTR_litex),    MP_ROM_PTR(&mp_module_litex)   }, \
-    { MP_ROM_QSTR(MP_QSTR_utime), MP_ROM_PTR(&mp_module_utime) }, \
-    { MP_ROM_QSTR(MP_QSTR_uos), MP_ROM_PTR(&uos_module) }, \
+// The MICROPY_PORT_BUILTINS / MICROPY_PORT_BUILTIN_MODULES macros were
+// replaced in 1.20 by MP_REGISTER_MODULE()s at the bottom of each module's
+// .c file. The 'machine' and 'time' modules now come from extmod/modmachine.c
+// and extmod/modtime.c respectively, keyed off the MICROPY_PY_MACHINE /
+// MICROPY_PY_TIME flags above. The port-specific 'litex' module registers
+// itself from modlitex.c.
 
 // We need to provide a declaration/definition of alloca()
 #include <alloca.h>
