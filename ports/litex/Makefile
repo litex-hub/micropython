@@ -119,6 +119,17 @@ SRC_LITEX = \
 	$(LIBBASE_DIRECTORY)/system.c \
 	$(LIBBASE_DIRECTORY)/uart.c \
 
+# LiteX's libcompiler_rt build ships a curated subset of LLVM compiler-rt
+# builtins (see litex/soc/software/libcompiler_rt/Makefile). MicroPython's
+# float ABI (MICROPY_FLOAT_IMPL_DOUBLE) pulls in double<->float conversions
+# that aren't in that subset. Compile just those two translation units from
+# the same compiler-rt source tree that LiteX uses, so we stay consistent
+# without pulling in host-toolchain libgcc (which is usually the wrong ABI
+# on riscv64-unknown-elf multilib setups).
+SRC_LITEX += \
+	$(COMPILER_RT_DIRECTORY)/lib/builtins/truncdfsf2.c \
+	$(COMPILER_RT_DIRECTORY)/lib/builtins/extendsfdf2.c \
+
 # SDCard sources are only needed when the SoC exposes an SDCore or SPISDCard
 # peripheral (i.e. MICROPY_VFS_FAT=1). Sim targets without --with-sdcard would
 # otherwise fail to find <libfatfs/ff.h> since libfatfs is only pulled in when
