@@ -162,10 +162,10 @@ class PtyRepl:
         # running code to clear, and on 1.16-era MicroPython the response to
         # ctrl-D in an empty raw-REPL buffer is 'OK\\x04\\x04>' rather than
         # 'soft reboot', which would cause a false timeout.
-        self.write(b"\r\x02")       # ctrl-B: exit raw REPL if we were in one
-        self.write(b"\r\x03\x03")   # ctrl-C twice: interrupt any running code
+        self.write(b"\r\x02")  # ctrl-B: exit raw REPL if we were in one
+        self.write(b"\r\x03\x03")  # ctrl-C twice: interrupt any running code
         self.drain(duration=2.0)
-        self.write(b"\r\x01")       # ctrl-A: enter raw REPL
+        self.write(b"\r\x01")  # ctrl-A: enter raw REPL
         if self.read_until(RAW_REPL_BANNER, step_timeout) is None:
             return False
         return True
@@ -198,20 +198,30 @@ class PtyRepl:
 
 def spawn_sim(args):
     cmd = [
-        sys.executable, "-m", "litex.tools.litex_sim",
-        "--cpu-type", args.cpu_type,
-        "--integrated-main-ram-size", hex(args.ram_size),
-        "--libc-mode", "full",
-        "--output-dir", args.output_dir,
-        "--ram-init", str(args.firmware),
+        sys.executable,
+        "-m",
+        "litex.tools.litex_sim",
+        "--cpu-type",
+        args.cpu_type,
+        "--integrated-main-ram-size",
+        hex(args.ram_size),
+        "--libc-mode",
+        "full",
+        "--output-dir",
+        args.output_dir,
+        "--ram-init",
+        str(args.firmware),
         "--uart-pty",
-        "--uart-pty-path", args.pty,
+        "--uart-pty-path",
+        args.pty,
         "--non-interactive",
-        "--opt-level", args.opt_level,
+        "--opt-level",
+        args.opt_level,
         # Single-threaded Verilator runtime: for a small SoC the inter-thread
         # coordination overhead easily dominates, making 1 thread faster than
         # many.
-        "--threads", str(args.threads),
+        "--threads",
+        str(args.threads),
     ]
     log = open(args.log, "w")
     print("[run_sim] launching:", " ".join(cmd), file=sys.stderr)
@@ -259,8 +269,10 @@ def run_tests(repl, tests, step_timeout, exec_timeout):
     failures = []
     for test in tests:
         source = strip_comments(Path(test).read_text())
-        print(f"[run_sim] running {test} ({len(source)} bytes after stripping "
-              f"comments)", file=sys.stderr)
+        print(
+            f"[run_sim] running {test} ({len(source)} bytes after stripping comments)",
+            file=sys.stderr,
+        )
         stdout, stderr = repl.exec_script(source, step_timeout, exec_timeout)
         if stdout is not None:
             sys.stdout.write(stdout.decode("utf-8", errors="replace"))
@@ -278,29 +290,58 @@ def main():
         description="Run MicroPython tests inside a LiteX simulation."
     )
     parser.add_argument("tests", nargs="+", help="Python test files to execute on the sim.")
-    parser.add_argument("--firmware", default=str(DEFAULT_FIRMWARE),
-                        help=f"MicroPython firmware binary (default: {DEFAULT_FIRMWARE}).")
-    parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR,
-                        help=f"litex_sim output dir (default: {DEFAULT_OUTPUT_DIR}).")
-    parser.add_argument("--pty", default=DEFAULT_PTY,
-                        help=f"PTY path exposed by litex_sim (default: {DEFAULT_PTY}).")
+    parser.add_argument(
+        "--firmware",
+        default=str(DEFAULT_FIRMWARE),
+        help=f"MicroPython firmware binary (default: {DEFAULT_FIRMWARE}).",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=DEFAULT_OUTPUT_DIR,
+        help=f"litex_sim output dir (default: {DEFAULT_OUTPUT_DIR}).",
+    )
+    parser.add_argument(
+        "--pty",
+        default=DEFAULT_PTY,
+        help=f"PTY path exposed by litex_sim (default: {DEFAULT_PTY}).",
+    )
     parser.add_argument("--cpu-type", default="vexriscv")
-    parser.add_argument("--ram-size", type=lambda s: int(s, 0), default=0x01000000,
-                        help="Integrated main RAM size (default: 16 MiB). MicroPython "
-                             "zeroes a GC alloc table proportional to this size at "
-                             "startup; a simulated 1 MHz CPU needs minutes for 256 MiB, "
-                             "seconds for 16 MiB.")
-    parser.add_argument("--opt-level", default="O3",
-                        help="Verilator -O level for the compiled sim model (default: O3).")
-    parser.add_argument("--threads", type=int, default=1,
-                        help="Verilator runtime thread count (default: 1; for "
-                             "a small SoC more threads usually hurt).")
-    parser.add_argument("--log", default="/tmp/litex_sim.log",
-                        help="File to redirect litex_sim stdout/stderr into.")
-    parser.add_argument("--keep-sim", action="store_true",
-                        help="Leave litex_sim running after the tests (for debugging).")
-    parser.add_argument("--verbose", action="store_true",
-                        help="Stream the sim UART bytes to stderr while driving the REPL.")
+    parser.add_argument(
+        "--ram-size",
+        type=lambda s: int(s, 0),
+        default=0x01000000,
+        help="Integrated main RAM size (default: 16 MiB). MicroPython "
+        "zeroes a GC alloc table proportional to this size at "
+        "startup; a simulated 1 MHz CPU needs minutes for 256 MiB, "
+        "seconds for 16 MiB.",
+    )
+    parser.add_argument(
+        "--opt-level",
+        default="O3",
+        help="Verilator -O level for the compiled sim model (default: O3).",
+    )
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=1,
+        help="Verilator runtime thread count (default: 1; for "
+        "a small SoC more threads usually hurt).",
+    )
+    parser.add_argument(
+        "--log",
+        default="/tmp/litex_sim.log",
+        help="File to redirect litex_sim stdout/stderr into.",
+    )
+    parser.add_argument(
+        "--keep-sim",
+        action="store_true",
+        help="Leave litex_sim running after the tests (for debugging).",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Stream the sim UART bytes to stderr while driving the REPL.",
+    )
     args = parser.parse_args()
 
     if not Path(args.firmware).is_file():
@@ -315,13 +356,15 @@ def main():
     if not args.keep_sim:
         atexit.register(kill_sim, proc)
 
-    print(f"[run_sim] waiting for Verilator build to finish (up to "
-          f"{SIM_BUILD_TIMEOUT_S}s, see {args.log})", file=sys.stderr)
+    print(
+        f"[run_sim] waiting for Verilator build to finish (up to "
+        f"{SIM_BUILD_TIMEOUT_S}s, see {args.log})",
+        file=sys.stderr,
+    )
 
     def gateware_make_exited(line):
         # e.g. "make[1]: Leaving directory '/tmp/litex_mpy_sim/gateware'"
-        return "Leaving directory " in line and line.rstrip().endswith(
-            SIM_BUILD_DONE_SUFFIX)
+        return "Leaving directory " in line and line.rstrip().endswith(SIM_BUILD_DONE_SUFFIX)
 
     if not wait_for_log_marker(args.log, gateware_make_exited, SIM_BUILD_TIMEOUT_S):
         sys.exit(f"timed out waiting for Verilator build (see {args.log})")
@@ -333,15 +376,13 @@ def main():
     repl = PtyRepl(args.pty, verbose=args.verbose)
     try:
         if not repl.wait_for_friendly_repl(REPL_READY_TIMEOUT_S):
-            sys.exit(f"timed out waiting for MicroPython REPL on {args.pty} "
-                     f"(see {args.log})")
+            sys.exit(f"timed out waiting for MicroPython REPL on {args.pty} (see {args.log})")
         print("[run_sim] REPL up, entering raw REPL", file=sys.stderr)
         if not repl.enter_raw_repl(RAW_REPL_STEP_TIMEOUT_S):
             sys.exit(f"failed to enter raw REPL (see {args.log})")
         print("[run_sim] raw REPL entered, executing tests", file=sys.stderr)
 
-        failures = run_tests(repl, args.tests,
-                             RAW_REPL_STEP_TIMEOUT_S, TEST_EXEC_TIMEOUT_S)
+        failures = run_tests(repl, args.tests, RAW_REPL_STEP_TIMEOUT_S, TEST_EXEC_TIMEOUT_S)
     finally:
         repl.close()
         log.close()

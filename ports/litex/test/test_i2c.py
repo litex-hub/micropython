@@ -14,7 +14,7 @@ i2c = SoftI2C(scl, sda, freq=100000)
 
 # Scan I2C.
 scan = i2c.scan()
-assert(len(scan) != 0)
+assert len(scan) != 0
 print(scan)
 
 # Scanned devices can now be read/written.

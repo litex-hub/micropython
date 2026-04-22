@@ -10,8 +10,8 @@ import machine
 print(machine.identifier().decode("utf-8"))
 
 # Display sys_clk_freq.
-print("sys_clk_freq: {}MHz".format(machine.freq()/1e6))
+print("sys_clk_freq: {}MHz".format(machine.freq() / 1e6))
 
 # Display free memory.
 gc.collect()
-print("free memory: {}KiB".format(gc.mem_free()/1024))
+print("free memory: {}KiB".format(gc.mem_free() / 1024))

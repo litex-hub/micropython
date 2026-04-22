@@ -64,12 +64,14 @@ def main():
         f.write("} litex_csr_entry_t;\n\n")
         f.write("static const litex_csr_entry_t litex_csr_table[] = {\n")
         for name, info in items:
-            f.write('    {"%s", 0x%08x, %d, %d},\n' % (
-                name, info["addr"], info["size"],
-                TYPE_ENUM.get(info["type"], 1)))
+            f.write(
+                '    {"%s", 0x%08x, %d, %d},\n'
+                % (name, info["addr"], info["size"], TYPE_ENUM.get(info["type"], 1))
+            )
         f.write("};\n\n")
-        f.write("#define LITEX_CSR_TABLE_SIZE "
-                "(sizeof(litex_csr_table)/sizeof(litex_csr_table[0]))\n\n")
+        f.write(
+            "#define LITEX_CSR_TABLE_SIZE (sizeof(litex_csr_table)/sizeof(litex_csr_table[0]))\n\n"
+        )
 
         # IRQ table: name -> CPU IRQ bit, for litex.EventManager.irq dispatch.
         f.write("typedef struct {\n")
@@ -80,8 +82,9 @@ def main():
         for prefix, bit in irqs:
             f.write('    {"%s", %d},\n' % (prefix, bit))
         f.write("};\n\n")
-        f.write("#define LITEX_IRQ_TABLE_SIZE "
-                "(sizeof(litex_irq_table)/sizeof(litex_irq_table[0]))\n\n")
+        f.write(
+            "#define LITEX_IRQ_TABLE_SIZE (sizeof(litex_irq_table)/sizeof(litex_irq_table[0]))\n\n"
+        )
 
         f.write("#endif // MICROPY_LITEX_CSR_TABLE_H\n")
 

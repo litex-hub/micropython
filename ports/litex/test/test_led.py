@@ -14,8 +14,8 @@ led.on()
 
 # Toggle Led every 200ms.
 for i in range(8):
-	time.sleep(0.2)
-	led.toggle()
+    time.sleep(0.2)
+    led.toggle()
 
 # Set Led Off.
 led.off()
