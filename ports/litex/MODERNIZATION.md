@@ -165,11 +165,13 @@ recipe, and frozen modules via `manifest.py` are all in place.
       `litex.csrs()`. Backed by a build-time-generated lookup table
       (`tools/gen_csr_table.py`) populated from the SoC's `csr.json`.
 - [x] `litex.EventManager(prefix)` wrapping the
-      `<prefix>_ev_pending/_ev_enable/_ev_status` CSR trio
-      (polling-style; IRQ-dispatched callbacks are a follow-up).
+      `<prefix>_ev_pending/_ev_enable/_ev_status` CSR trio. `.irq()`
+      registers a Python callback dispatched from the C-level `isr()`
+      via `mp_sched_schedule` (covered by `test_irq.py`).
 - [x] `machine.UART(id)` for secondary LiteX UARTs (primary stays with
-      REPL). Full MicroPython stream protocol (read / readline / write).
-      Polling for now; litex.EventManager integration is the next step.
+      REPL). Full MicroPython stream protocol (read / readline / write)
+      plus `.irq(handler, trigger)` for RX/TX events on the same
+      `litex_isr_register` plumbing.
 - [x] `machine.ADC` for the Xilinx XADC system monitor (temperature,
       vccint, vccaux, vccbram). `read()` / `read_u16()`.
 - [x] `framebuf` integration for `litex.Video` — the Video type already
