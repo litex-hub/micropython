@@ -414,6 +414,12 @@ function ci_litex_build_sim {
         --libc-mode=full \
         --output-dir="$out" \
         --no-compile-gateware
+    # Wipe the local build/ — it's shared across BUILD_DIRECTORYs and
+    # the QSTR cache (build/genhdr/qstrdefs.collected.h) isn't tied to
+    # the SoC's csr.h. A previous build without (say) CSR_UART1_BASE
+    # would leave MP_QSTR_UART out of the cache, then this build's
+    # MACHINE_UART_ENTRY wouldn't compile.
+    rm -rf ports/litex/build
     make ${MAKEOPTS} -C ports/litex BUILD_DIRECTORY="$out"
     # Sim test set: only the tests known to run without board peripherals.
     # GPIO/PWM/SDCard/etc. are exercised on real hardware, not in CI.
