@@ -37,6 +37,16 @@ jobs:
         variant: [base, ethernet]
     steps:
     - uses: actions/checkout@v4
+    # Cache the apt-installed packages (Verilator, riscv toolchain, …).
+    # On a cache hit the action restores the .debs from cache and runs
+    # apt-get install offline; saves ~30-60 s of apt download per run.
+    # ci_litex_setup also calls apt-get internally for some extras —
+    # that's cheap, only verilator + the riscv toolchain are bulky.
+    - name: Cache apt packages
+      uses: awalsh128/cache-apt-pkgs-action@v1
+      with:
+        packages: gcc-riscv64-unknown-elf verilator socat libevent-dev libjson-c-dev
+        version: 1.0
     # Cache LiteX install (~/.local from `pip --user`, ~/litex from
     # `litex_setup.py --init`). Cold install is ~3 min; cached restore
     # is ~5 s. Key includes ci.sh so the cache invalidates whenever we
@@ -51,6 +61,19 @@ jobs:
         key: litex-install-${{ runner.os }}-${{ hashFiles('tools/ci.sh', '.github/workflows/ports_litex.yml') }}
         restore-keys: |
           litex-install-${{ runner.os }}-
+    # Cache the per-variant SoC build dir (LiteX libraries + Verilator
+    # gateware obj_dir). The key bakes in everything that affects the
+    # SoC layout — ci.sh args, the fast-sim wrapper, and the LiteX
+    # install — so a hit means the gateware Vsim binary and libbase /
+    # picolibc / libcompiler_rt builds are all still valid. Skips ~2
+    # minutes of Verilator C++ compilation on warm runs.
+    - name: Cache SoC build dir
+      uses: actions/cache@v4
+      with:
+        path: /tmp/litex_mpy_sim_${{ matrix.cpu }}_${{ matrix.variant }}
+        key: soc-${{ matrix.cpu }}-${{ matrix.variant }}-${{ hashFiles('tools/ci.sh', 'ports/litex/tools/litex_sim_fast.py', '.github/workflows/ports_litex.yml') }}
+        restore-keys: |
+          soc-${{ matrix.cpu }}-${{ matrix.variant }}-
     - name: Install packages
       run: tools/ci.sh ci_litex_setup
     - name: Build firmware and run sim tests (${{ matrix.cpu }} / ${{ matrix.variant }})
@@ -70,6 +93,11 @@ jobs:
         board: [digilent_arty]
     steps:
     - uses: actions/checkout@v4
+    - name: Cache apt packages
+      uses: awalsh128/cache-apt-pkgs-action@v1
+      with:
+        packages: gcc-riscv64-unknown-elf verilator socat libevent-dev libjson-c-dev
+        version: 1.0
     - name: Cache LiteX install
       id: cache-litex
       uses: actions/cache@v4
@@ -80,6 +108,13 @@ jobs:
         key: litex-install-${{ runner.os }}-${{ hashFiles('tools/ci.sh', '.github/workflows/ports_litex.yml') }}
         restore-keys: |
           litex-install-${{ runner.os }}-
+    - name: Cache board build dir
+      uses: actions/cache@v4
+      with:
+        path: /tmp/litex_mpy_${{ matrix.board }}
+        key: board-${{ matrix.board }}-${{ hashFiles('tools/ci.sh', '.github/workflows/ports_litex.yml') }}
+        restore-keys: |
+          board-${{ matrix.board }}-
     - name: Install packages
       run: tools/ci.sh ci_litex_setup
     - name: Build firmware for ${{ matrix.board }}
