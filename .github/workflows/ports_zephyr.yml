@@ -1,17 +1,7 @@
 name: zephyr port
 
 on:
-  push:
-  pull_request:
-    paths:
-      - '.github/workflows/ports_zephyr.yml'
-      - 'tools/**'
-      - 'py/**'
-      - 'extmod/**'
-      - 'shared/**'
-      - 'lib/**'
-      - 'ports/zephyr/**'
-      - 'tests/**'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

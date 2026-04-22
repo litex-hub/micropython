@@ -1,9 +1,7 @@
 name: Code size comment
 
 on:
-  workflow_run:
-    workflows: [Check code size]
-    types: [completed]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

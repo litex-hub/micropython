@@ -75,9 +75,9 @@ jobs:
         restore-keys: |
           soc-${{ matrix.cpu }}-${{ matrix.variant }}-
     - name: Install packages
-      run: tools/ci.sh ci_litex_setup
+      run: tools/ci.sh litex_setup
     - name: Build firmware and run sim tests (${{ matrix.cpu }} / ${{ matrix.variant }})
-      run: tools/ci.sh ci_litex_build_sim ${{ matrix.cpu }} ${{ matrix.variant }}
+      run: tools/ci.sh litex_build_sim ${{ matrix.cpu }} ${{ matrix.variant }}
     - name: Dump sim log on failure
       if: failure()
       run: |
@@ -116,6 +116,6 @@ jobs:
         restore-keys: |
           board-${{ matrix.board }}-
     - name: Install packages
-      run: tools/ci.sh ci_litex_setup
+      run: tools/ci.sh litex_setup
     - name: Build firmware for ${{ matrix.board }}
-      run: tools/ci.sh ci_litex_build_board ${{ matrix.board }}
+      run: tools/ci.sh litex_build_board ${{ matrix.board }}
