@@ -207,7 +207,7 @@ $(BUILD)/firmware.bin: $(BUILD)/firmware.elf
 # Requires Verilator + socat + the `litex` Python package on $PATH.
 TESTS ?= test/test_hello_world.py
 test: $(BUILD)/firmware.bin
-	$(Q)tools/run_sim.py --firmware $(BUILD)/firmware.bin $(TESTS)
+	$(Q)tools/run_sim.py --firmware $(BUILD)/firmware.bin --output-dir $(BUILD_DIRECTORY) $(TESTS)
 
 .PHONY: test
 
