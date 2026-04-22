@@ -34,6 +34,7 @@ jobs:
       fail-fast: false
       matrix:
         cpu: [vexriscv]
+        variant: [base, ethernet]
     steps:
     - uses: actions/checkout@v4
     # Cache LiteX install (~/.local from `pip --user`, ~/litex from
@@ -52,8 +53,8 @@ jobs:
           litex-install-${{ runner.os }}-
     - name: Install packages
       run: tools/ci.sh ci_litex_setup
-    - name: Build firmware and run sim tests (${{ matrix.cpu }})
-      run: tools/ci.sh ci_litex_build_sim ${{ matrix.cpu }}
+    - name: Build firmware and run sim tests (${{ matrix.cpu }} / ${{ matrix.variant }})
+      run: tools/ci.sh ci_litex_build_sim ${{ matrix.cpu }} ${{ matrix.variant }}
     - name: Dump sim log on failure
       if: failure()
       run: |

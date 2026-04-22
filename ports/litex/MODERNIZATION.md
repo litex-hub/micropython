@@ -184,9 +184,14 @@ recipe, and frozen modules via `manifest.py` are all in place.
 - [x] `test/test_litex.py` covers the new litex module API.
 - [x] Empty `manifest.py` stub so `FROZEN_MANIFEST` is ready when a
       board-level variant wants to freeze .py modules.
+- [x] `network.LAN` over LiteEth + lwIP. `network.LAN(0).active(True)`,
+      `.ifconfig('dhcp' | tuple)`, `.config('mac' | mac=...)`,
+      `socket` works through the standard extmod paths. Polling-only
+      RX for now; IRQ dispatch via `ETHMAC_INTERRUPT` is a follow-up.
+      Sim test in `test/test_lan.py`; `tap0` host setup required for
+      packet flow.
 
 **Feature additions, still pending** (rough priority order):
-- `litex.Ethernet` / `socket` over LiteEth (big — needs lwIP; later pass).
 - `litex.SATA`, `litex.PCIe` BAR access — niche but LiteX-differentiating.
 - LUNA USB-CDC ACM as a `machine.UART` backend — opportunity for boards
   with a USB phy now that LiteX ships `usb_acm` via LUNA (Mar 2026).

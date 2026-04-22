@@ -233,16 +233,26 @@ def spawn_sim(args):
             str(args.sys_clk_freq),
             "--skip-bios-boot",
         ]
-        # Auto-pass --with-uart1 if the firmware's csr.h has CSR_UART1_BASE.
-        # litex_sim regenerates the SoC on every launch, so we need to feed
-        # the same SoC topology in or the sim's CSR layout won't match what
-        # the firmware was compiled against.
-        with_uart1 = args.with_uart1
+        # Auto-pass --with-uart1 / --with-ethernet if the firmware's csr.h
+        # has the matching CSR_*_BASE. litex_sim regenerates the SoC on
+        # every launch, so we need to feed the same SoC topology in or
+        # the sim's CSR layout won't match what the firmware was
+        # compiled against.
         csr_h = Path(args.output_dir) / "software" / "include" / "generated" / "csr.h"
-        if not with_uart1 and csr_h.is_file():
-            with_uart1 = "CSR_UART1_BASE" in csr_h.read_text()
+        csr_text = csr_h.read_text() if csr_h.is_file() else ""
+
+        with_uart1 = args.with_uart1 or "CSR_UART1_BASE" in csr_text
         if with_uart1:
             cmd.append("--with-uart1")
+
+        with_ethernet = args.with_ethernet or "CSR_ETHMAC_BASE" in csr_text
+        if with_ethernet:
+            cmd.append("--with-ethernet")
+            # The default `sim` PHY model needs a tap interface on the
+            # host (typically `litex-sim` or `tap0` with the gateway IP
+            # routed). Without one the sim will print a libevent error
+            # but still boot — the netif comes up disconnected which is
+            # fine for API smoke tests.
     else:
         cmd = [sys.executable, "-m", "litex.tools.litex_sim"]
     cmd += [
@@ -403,6 +413,17 @@ def main():
         "machine.UART(1) and machine.UART(1).irq() are exercisable in sim. "
         "The UART has the standard CSR layout but no actual host-side "
         "endpoint — reads always block (rxempty=1).",
+    )
+    parser.add_argument(
+        "--with-ethernet",
+        action="store_true",
+        default=False,
+        help="Pass --with-ethernet through to litex_sim so the SoC includes "
+        "a LiteEth MAC. Auto-enabled when csr.h has CSR_ETHMAC_BASE. The "
+        "sim PHY model expects a host-side tap interface (`tap0` with a "
+        "reachable gateway); without one the netif comes up disconnected "
+        "but the firmware still boots, which is enough for API smoke "
+        "tests.",
     )
     parser.add_argument(
         "--log",

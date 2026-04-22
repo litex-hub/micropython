@@ -249,6 +249,48 @@ fb.text("LiteX + MicroPython", 10, 10, 0xFFFF)
 See [`examples/video_framebuf.py`](examples/video_framebuf.py) for a
 ready-to-run script.
 
+Networking with `network.LAN`
+-----------------------------
+
+SoCs built with `--with-ethernet` get a `network.LAN` interface backed
+by LiteEth and lwIP. The standard MicroPython network API works
+unchanged — anything that runs on stm32 / mimxrt / rp2 (urequests,
+asyncio sockets, mqtt, webrepl, …) works here.
+
+```python
+import network
+
+lan = network.LAN(0)
+lan.active(True)
+lan.ifconfig('dhcp')          # or a static (ip, mask, gw, dns) tuple
+print(lan.ifconfig(), lan.config('mac'))
+
+import socket
+s = socket.socket()
+s.connect(socket.getaddrinfo('example.com', 80)[0][-1])
+s.send(b'GET / HTTP/1.0\r\nHost: example.com\r\n\r\n')
+print(s.recv(4096))
+```
+
+The LiteEth driver currently polls RX from the VM loop and from
+`mp_hal_delay_ms`. IRQ-driven dispatch (via `litex_isr_register` on
+`ETHMAC_INTERRUPT`) is a follow-up that drops idle CPU usage but
+doesn't change the API.
+
+To exercise the integration in `litex_sim` you also need a host-side
+tap interface:
+
+```bash
+sudo ip tuntap add dev tap0 mode tap user $USER
+sudo ip addr add 192.168.42.1/24 dev tap0
+sudo ip link set tap0 up
+make test BUILD_DIRECTORY=/tmp/litex_mpy_sim TESTS=test/test_lan.py
+```
+
+Without the tap, `network.LAN(0).active(True)` still succeeds
+(`ifconfig`/`config('mac')` return the static IP / MAC) but no packets
+flow.
+
 Supported hardware
 ------------------
 
@@ -288,6 +330,7 @@ that core enabled:
 | `litex.DMAReader/Writer`| `CSR_DMA_READER_BASE` / `CSR_DMA_WRITER_BASE` | `litex_dma.c` |
 | `litex.Video`           | `CSR_VIDEO_FRAMEBUFFER_BASE` (`--with-video-framebuffer`) | `litex_video.c` |
 | `litex.EventManager`    | any peripheral with `<prefix>_ev_*` CSRs | `modlitex.c` |
+| `network.LAN`           | `CSR_ETHMAC_BASE` (`--with-ethernet`) | `network_lan.c` + `liteeth_netif.c` |
 
 **Boards** — any [LiteX-Boards](https://github.com/litex-hub/litex-boards)
 target works once you generate it with `--build`. The port is

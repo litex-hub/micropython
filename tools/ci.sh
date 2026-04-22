@@ -384,9 +384,23 @@ function ci_litex_setup {
 }
 
 function ci_litex_build_sim {
-    # Usage: ci_litex_build_sim <cpu>
+    # Usage: ci_litex_build_sim <cpu> [variant]
+    # variant defaults to "base"; pass "ethernet" to also enable LiteEth.
     local cpu=${1:-vexriscv}
-    local out=/tmp/litex_mpy_sim_${cpu}
+    local variant=${2:-base}
+    local out=/tmp/litex_mpy_sim_${cpu}_${variant}
+    local extra_sim_args=()
+    local tests="test/test_hello_world.py test/test_machine.py test/test_litex.py test/test_irq.py test/test_uart.py"
+    if [ "$variant" = "ethernet" ]; then
+        extra_sim_args+=(--with-ethernet)
+        tests="$tests test/test_lan.py"
+        # litex_sim's sim PHY needs a tap interface to actually move
+        # packets. Create one before launching; ifconfig is enough since
+        # test_lan.py is API-only (no actual round-trip required).
+        sudo ip tuntap add dev tap0 mode tap user "$(id -u -n)" 2>/dev/null || true
+        sudo ip addr add 192.168.42.1/24 dev tap0 2>/dev/null || true
+        sudo ip link set tap0 up 2>/dev/null || true
+    fi
     # Generate the SoC headers using the *same* args run_sim.py will use
     # (via tools/litex_sim_fast.py). Identical generations on both sides
     # avoid a stale CONFIG_CLOCK_FREQUENCY in the linked firmware.
@@ -394,6 +408,7 @@ function ci_litex_build_sim {
         --sys-clk-freq=100000 \
         --skip-bios-boot \
         --with-uart1 \
+        "${extra_sim_args[@]}" \
         --cpu-type="$cpu" \
         --integrated-main-ram-size=0x01000000 \
         --libc-mode=full \
@@ -402,8 +417,7 @@ function ci_litex_build_sim {
     make ${MAKEOPTS} -C ports/litex BUILD_DIRECTORY="$out"
     # Sim test set: only the tests known to run without board peripherals.
     # GPIO/PWM/SDCard/etc. are exercised on real hardware, not in CI.
-    make -C ports/litex BUILD_DIRECTORY="$out" test \
-        TESTS="test/test_hello_world.py test/test_machine.py test/test_litex.py test/test_irq.py test/test_uart.py"
+    make -C ports/litex BUILD_DIRECTORY="$out" test TESTS="$tests"
 }
 
 function ci_litex_build_board {
