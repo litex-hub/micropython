@@ -39,14 +39,18 @@ DEFAULT_FIRMWARE = PORT_DIR / "build" / "firmware.bin"
 # (litex_sim reuses the obj_dir). The REPL wait only starts once Verilator
 # is done building, so the short timeout there is fine.
 SIM_BUILD_TIMEOUT_S = 600
-REPL_READY_TIMEOUT_S = 300
-PTY_APPEAR_TIMEOUT_S = 30
+# Enlarged for the ethernet SoC variant: the LiteEth MAC + PHY adds enough
+# Verilator work that the firmware takes ~6 min of wall-clock to boot
+# from Liftoff to the MicroPython REPL, vs ~seconds for the base SoC.
+REPL_READY_TIMEOUT_S = 900
+PTY_APPEAR_TIMEOUT_S = 300
 # LiteX's RS232PHYModel is a byte-level valid/ready stream (no baud), but
 # Verilator's wall-clock step rate still bounds throughput, and a full
 # round-trip through MicroPython's parser + compiler + execute under
-# Verilator can easily take a minute or two. Be generous.
-RAW_REPL_STEP_TIMEOUT_S = 600
-TEST_EXEC_TIMEOUT_S = 600
+# Verilator can easily take several minutes on the ethernet SoC. Be
+# generous.
+RAW_REPL_STEP_TIMEOUT_S = 900
+TEST_EXEC_TIMEOUT_S = 900
 # Log substring printed when the Verilator `make` recursion for the gateware
 # directory exits — the last build-time message before litex_sim launches the
 # Vsim binary. We look for "Leaving directory '<output_dir>/gateware'" so we
@@ -255,6 +259,13 @@ def spawn_sim(args):
             # fine for API smoke tests.
     else:
         cmd = [sys.executable, "-m", "litex.tools.litex_sim"]
+        # Vanilla litex_sim doesn't auto-detect — pass through whatever
+        # csr.h says the SoC has, so the regen here matches the SoC the
+        # firmware was built against.
+        csr_h = Path(args.output_dir) / "software" / "include" / "generated" / "csr.h"
+        csr_text = csr_h.read_text() if csr_h.is_file() else ""
+        if args.with_ethernet or "CSR_ETHMAC_BASE" in csr_text:
+            cmd.append("--with-ethernet")
     cmd += [
         "--cpu-type",
         args.cpu_type,

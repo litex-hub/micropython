@@ -32,6 +32,7 @@
 #include "py/runtime.h"
 
 #include "lwip/etharp.h"
+#include "lwip/init.h"
 #include "lwip/netif.h"
 #include "lwip/pbuf.h"
 #include "lwip/snmp.h"
@@ -60,14 +61,21 @@ static liteeth_state_t liteeth_state;
 // ---------------------------------------------------------------------------
 
 static void liteeth_handle_rx(struct netif *netif) {
-    // ev_pending bit 0 is the "RX completed into a slot" event. Loop while
-    // we have unprocessed slots — the MAC may have queued several.
+    // ev_pending bit 0 is the "RX completed into a slot" event. We
+    // drain at most ETHMAC_RX_SLOTS frames per call: if the host is
+    // continuously broadcasting (mDNS, IPv6 RA, ARP, ...) onto our
+    // interface, new slots latch as fast as we clear them and an
+    // unbounded `while (ev_pending)` would starve everything else.
+    // Whatever's left over gets picked up on the next poll.
     //
     // Hand each frame to lwIP via netif->input (== ethernet_input here)
     // and write-1-clear ev_pending so the slot returns to the MAC's
     // free pool. If we run out of pbufs we drop the frame and still
     // clear ev_pending; better to lose a packet than wedge the MAC.
-    while (ethmac_sram_writer_ev_pending_read() & 0x1) {
+    for (int i = 0; i < ETHMAC_RX_SLOTS; i++) {
+        if (!(ethmac_sram_writer_ev_pending_read() & 0x1)) {
+            break;
+        }
         uint8_t slot = ethmac_sram_writer_slot_read();
         uint16_t length = ethmac_sram_writer_length_read();
         const uint8_t *src = (const uint8_t *)(ETHMAC_RX_BASE + slot * ETHMAC_SLOT_SIZE);
@@ -146,6 +154,15 @@ static err_t liteeth_netif_init_cb(struct netif *netif) {
 }
 
 int liteeth_netif_init(struct netif *netif, const uint8_t *mac_addr) {
+    // Initialise lwIP (memp pools, netif list, timeouts) on first call.
+    // Without this, netif_add walks uninitialised global state and we
+    // hang somewhere inside lwIP. Most ports call this at firmware
+    // boot; we defer to here so non-LAN firmware doesn't pay the cost.
+    static bool lwip_inited = false;
+    if (!lwip_inited) {
+        lwip_init();
+        lwip_inited = true;
+    }
     // Reset the LiteEth MAC's event lines to a clean state.
     ethmac_sram_writer_ev_pending_write(0x1);
     ethmac_sram_reader_ev_pending_write(0x1);
