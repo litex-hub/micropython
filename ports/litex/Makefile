@@ -28,6 +28,17 @@ include ../../py/mkenv.mk
 MICROPY_VFS_FAT = $(shell egrep "(CSR_SDCORE_BASE|CSR_SPISDCARD_BASE)" ${BUILD_DIRECTORY}/software/include/generated/csr.h | wc -l)
 #$(info $$MICROPY_VFS_FAT is: ${MICROPY_VFS_FAT})
 
+# Detect LiteEth presence in the SoC and pull in lwIP only when it's there.
+# extmod/extmod.mk keys off MICROPY_PY_LWIP=1 to compile + link the lwIP
+# core; we additionally route the port-specific lwipopts.h through
+# lwip_inc/. Whichever value we set here also gets reflected as a CFLAG
+# (-DMICROPY_PY_LWIP=...) so mpconfigport.h can gate MICROPY_PY_NETWORK
+# / MICROPY_PY_SOCKET / etc. on it.
+MICROPY_PY_LWIP := $(shell grep -q "CSR_ETHMAC_BASE" ${BUILD_DIRECTORY}/software/include/generated/csr.h 2>/dev/null && echo 1 || echo 0)
+ifeq ($(MICROPY_PY_LWIP),1)
+INC += -I$(TOP)/ports/litex/lwip_inc
+endif
+
 #TODO:it's unclear why py.mk (that has this logic) doesn't get called
 ################################################################################
 # VFS FAT FS
