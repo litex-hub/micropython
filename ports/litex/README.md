@@ -211,11 +211,15 @@ ev_pending address at compile time.
 System-monitor ADC
 ------------------
 
-SoCs built with `--with-xadc` on Xilinx parts get `machine.ADC` backed by
-the system-monitor XADC. Four channels: `temperature`, `vccint`,
-`vccaux`, `vccbram`. `read()` returns the raw 12-bit sample; `read_u16()`
-returns the same value scaled into the 0–65535 range used by other
-MicroPython ports.
+SoCs built with `--with-xadc` (or the equivalent SystemMonitor wrapper
+on UltraScale / UltraScale+ / ZynqUSP parts) get `machine.ADC` backed
+by the on-die monitor. Standard channels: `temperature`, `vccint`,
+`vccaux`, `vccbram`; ZynqUSP adds `vccpsintlp`, `vccpsintfp`,
+`vccpsaux`. Channels can be addressed by symbolic name, by numeric
+index, or by raw CSR name (`machine.ADC('xadc_temperature')`) for
+SoCs that wrap the core under a non-default prefix. `read()` returns
+the raw N-bit sample; `read_u16()` returns the same value scaled into
+the 0–65535 range used by other MicroPython ports.
 
 ```python
 import machine
@@ -277,7 +281,7 @@ that core enabled:
 | `machine.PWM`           | `CSR_LEDS_PWM_ENABLE_ADDR` (`--with-led-chaser` + PWM) | `machine_pwm.c` |
 | `machine.SDCard`        | `CSR_SDCORE_BASE` or `CSR_SPISDCARD_BASE` | `machine_sdcard.c` |
 | `machine.UART(id)`      | `CSR_UART<N>_BASE` (extra `--with-uart`) | `machine_uart.c` |
-| `machine.ADC(channel)`  | `CSR_XADC_*` / `CSR_SYSMON_*` / `CSR_LITEADC_*` | `machine_adc.c` |
+| `machine.ADC(channel)`  | `CSR_XADC_*` / `CSR_SYSMON_*` (Xilinx XADC / SystemMonitor incl. ZynqUSP rails) | `machine_adc.c` |
 | `machine.SoftSPI`       | always available (bit-bangs Pin)| `extmod`       |
 | `machine.SoftI2C`       | always available (bit-bangs Pin)| `extmod`       |
 | `litex.LED`             | `CSR_LEDS_BASE`                 | `litex_led.c`  |
