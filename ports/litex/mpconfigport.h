@@ -46,9 +46,9 @@
 
 // Type definitions for the specific machine
 
-typedef intptr_t  mp_int_t;
+typedef intptr_t mp_int_t;
 typedef uintptr_t mp_uint_t;
-typedef long      mp_off_t;
+typedef long mp_off_t;
 
 
 #include <generated/csr.h>
@@ -63,7 +63,7 @@ typedef long      mp_off_t;
 #define MICROPY_PY_FRAMEBUF (1)
 #endif
 
-#if defined(CSR_SPI_BASE) || defined (CSR_SPI0_BASE)
+#if defined(CSR_SPI_BASE) || defined(CSR_SPI0_BASE)
 #define USE_HARDWARE_SPI
 #endif
 
@@ -78,14 +78,14 @@ typedef long      mp_off_t;
 
 // Whether to automatically mount (and boot from) the SD card if it's present
 #ifndef MICROPY_HW_SDCARD_MOUNT_AT_BOOT
-//#define MICROPY_HW_SDCARD_MOUNT_AT_BOOT (MICROPY_HW_ENABLE_SDCARD) //not enabled by default
+// #define MICROPY_HW_SDCARD_MOUNT_AT_BOOT (MICROPY_HW_ENABLE_SDCARD) //not enabled by default
 #endif
 
 #define MICROPY_FATFS_MULTI_PARTITION (1)
-#else //not MICROPY_VFS_FAT
-#undef MICROPY_VFS_FAT  //if there's no SD core, disable VFS fat
+#else // not MICROPY_VFS_FAT
+#undef MICROPY_VFS_FAT  // if there's no SD core, disable VFS fat
 #define MICROPY_VFS_FAT (0)
-#endif //MICROPY_VFS_FAT
+#endif // MICROPY_VFS_FAT
 
 #if MICROPY_VFS_FAT
 #define MICROPY_VFS MICROPY_VFS_FAT
@@ -104,22 +104,39 @@ typedef long      mp_off_t;
 #endif
 #define MICROPY_READER_VFS              (MICROPY_VFS_FAT)
 
-#define MICROPY_PY_SYS_PLATFORM "LiteX (" CONFIG_BUS_STANDARD " bus)" //TODO: use board name from SoC generation
+#define MICROPY_PY_SYS_PLATFORM "LiteX (" CONFIG_BUS_STANDARD " bus)" // TODO: use board name from SoC generation
 
-#define TIMER0_POLLING //interrupt handing not enabled yet
+#define TIMER0_POLLING // interrupt handing not enabled yet
 #ifdef CSR_TIMER0_UPTIME_LATCH_ADDR
-//TODO: use SDK
-static inline uint64_t litex_uptime() {  timer0_uptime_latch_write(1); return timer0_uptime_cycles_read(); }
+// TODO: use SDK
+static inline uint64_t litex_uptime() {
+    timer0_uptime_latch_write(1);
+    return timer0_uptime_cycles_read();
+}
 #else
-//calibrated for sleep_ms / sleep
-static inline uint64_t litex_uptime() { static uint64_t uptime = 0; return uptime+=250; }
+// calibrated for sleep_ms / sleep
+static inline uint64_t litex_uptime() {
+    static uint64_t uptime = 0;
+    return uptime += 250;
+}
 #endif
 
 #ifdef CSR_TIMER0_UPTIME_CYCLES_ADDR
-void litex_delay_cycles(uint64_t c); //TODO: maybe a faster implementation can be limited to 32 bits
-static inline void mp_hal_delay_us_fast(mp_uint_t us) {  uint64_t c = us; c *= CONFIG_CLOCK_FREQUENCY; c /= 1000000; litex_delay_cycles(c); }
+void litex_delay_cycles(uint64_t c); // TODO: maybe a faster implementation can be limited to 32 bits
+static inline void mp_hal_delay_us_fast(mp_uint_t us) {
+    uint64_t c = us;
+    c *= CONFIG_CLOCK_FREQUENCY;
+    c /= 1000000;
+    litex_delay_cycles(c);
+}
 #else
-static inline void mp_hal_delay_us_fast(mp_uint_t us) { us*=4; volatile static uint8_t t; while(us--) ++t; }
+static inline void mp_hal_delay_us_fast(mp_uint_t us) {
+    us *= 4;
+    volatile static uint8_t t;
+    while (us--) {
+        ++t;
+    }
+}
 #endif
 #define mp_hal_delay_us(us)   mp_hal_delay_us_fast(us)
 

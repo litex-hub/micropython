@@ -1,7 +1,7 @@
 // This file is Copyright (c) 2021 Victor Suarez Rovere <suarezvictor@gmail.com>
 // License: BSD-2-Clause
 
-#include <string.h> //for memcpy
+#include <string.h> // for memcpy
 
 #include <generated/csr.h>
 
@@ -30,25 +30,25 @@ typedef struct _litex_video_type_t {
 const mp_obj_type_t litex_video_type;
 
 static mp_obj_t litex_video_make_new(const mp_obj_type_t *type_in,
-		size_t n_args, size_t n_kw, const mp_obj_t *args) {
+    size_t n_args, size_t n_kw, const mp_obj_t *args) {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
 
     mp_uint_t video_num = mp_obj_get_int(args[0]);
 
     if (video_num != 0) {
-         nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_ValueError,
-			"not a valid video number: %d", video_num));
+        nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_ValueError,
+            "not a valid video number: %d", video_num));
     }
     litex_video_obj_t *self = m_new_obj(litex_video_obj_t);
     self->base.type = &litex_video_type;
     self->num = video_num;
-    self->xres = video_framebuffer_hres_read(); //VIDEO_FRAMEBUFFER_HRES
-    self->yres = video_framebuffer_vres_read(); //VIDEO_FRAMEBUFFER_VRES
+    self->xres = video_framebuffer_hres_read(); // VIDEO_FRAMEBUFFER_HRES
+    self->yres = video_framebuffer_vres_read(); // VIDEO_FRAMEBUFFER_VRES
     self->bitdepth = VIDEO_FRAMEBUFFER_DEPTH;
-    self->video_addr = (void *) video_framebuffer_base_read(); //reads word at VIDEO_FRAMEBUFFER_BASE
-    self->stride = self->xres*VIDEO_FRAMEBUFFER_DEPTH/8;
+    self->video_addr = (void *)video_framebuffer_base_read();  // reads word at VIDEO_FRAMEBUFFER_BASE
+    self->stride = self->xres * VIDEO_FRAMEBUFFER_DEPTH / 8;
 
-    memset(self->video_addr, 0/*xFF*/, self->yres*self->stride);
+    memset(self->video_addr, 0 /*xFF*/, self->yres * self->stride);
 
     return MP_OBJ_FROM_PTR(self);
 }
@@ -62,81 +62,76 @@ static mp_int_t video_get_buffer(mp_obj_t self_in, mp_buffer_info_t *bufinfo, mp
     return 0;
 }
 
-void litex_video_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind)
-{
-    litex_video_obj_t *self = (litex_video_obj_t *) self_in;
+void litex_video_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
+    litex_video_obj_t *self = (litex_video_obj_t *)self_in;
     mp_printf(print, "video(%u): %dx%d %dbpp, stride=%d bytes, base address=0x%p",
-      self->num, self->xres, self->yres, self->bitdepth, self->stride, self->video_addr);
+        self->num, self->xres, self->yres, self->bitdepth, self->stride, self->video_addr);
 }
 
-static mp_obj_t litex_video_width(mp_obj_t self_in)
-{
-    litex_video_obj_t *self = (litex_video_obj_t *) self_in;
+static mp_obj_t litex_video_width(mp_obj_t self_in) {
+    litex_video_obj_t *self = (litex_video_obj_t *)self_in;
     return MP_OBJ_NEW_SMALL_INT(self->xres);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(litex_video_width_obj, litex_video_width);
 
-static mp_obj_t litex_video_height(mp_obj_t self_in)
-{
-    litex_video_obj_t *self = (litex_video_obj_t *) self_in;
+static mp_obj_t litex_video_height(mp_obj_t self_in) {
+    litex_video_obj_t *self = (litex_video_obj_t *)self_in;
     return MP_OBJ_NEW_SMALL_INT(self->yres);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(litex_video_height_obj, litex_video_height);
 
-static mp_obj_t litex_video_stride(mp_obj_t self_in)
-{
-    litex_video_obj_t *self = (litex_video_obj_t *) self_in;
-    int stride = self->stride/(self->bitdepth/8);
-    return MP_OBJ_NEW_SMALL_INT(stride); //expected result is in pixels
+static mp_obj_t litex_video_stride(mp_obj_t self_in) {
+    litex_video_obj_t *self = (litex_video_obj_t *)self_in;
+    int stride = self->stride / (self->bitdepth / 8);
+    return MP_OBJ_NEW_SMALL_INT(stride); // expected result is in pixels
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(litex_video_stride_obj, litex_video_stride);
 
-static mp_obj_t litex_video_bpp(mp_obj_t self_in)
-{
-    litex_video_obj_t *self = (litex_video_obj_t *) self_in;
+static mp_obj_t litex_video_bpp(mp_obj_t self_in) {
+    litex_video_obj_t *self = (litex_video_obj_t *)self_in;
     return MP_OBJ_NEW_SMALL_INT(self->bitdepth);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(litex_video_bpp_obj, litex_video_bpp);
 
 
-static mp_obj_t litex_video_blitbuf(mp_obj_t self_in, mp_obj_t mem_buf)
-{
-    litex_video_obj_t *self = (litex_video_obj_t *) self_in;
+static mp_obj_t litex_video_blitbuf(mp_obj_t self_in, mp_obj_t mem_buf) {
+    litex_video_obj_t *self = (litex_video_obj_t *)self_in;
 
     mp_buffer_info_t src;
     mp_get_buffer_raise(mem_buf, &src, MP_BUFFER_READ);
 
-    size_t len = self->yres*self->stride;
-    if (len > src.len)
-      len = src.len;
-    //memcpy(self->video_addr, src.buf, len);
-    uint16_t pix = *(uint16_t*) src.buf;
-    for(uint16_t *p = (uint16_t*) self->video_addr; p < ((uint16_t*) self->video_addr)+(self->yres*self->stride); ++p)
-     *p = pix;
+    size_t len = self->yres * self->stride;
+    if (len > src.len) {
+        len = src.len;
+    }
+    // memcpy(self->video_addr, src.buf, len);
+    uint16_t pix = *(uint16_t *)src.buf;
+    for (uint16_t *p = (uint16_t *)self->video_addr; p < ((uint16_t *)self->video_addr) + (self->yres * self->stride); ++p) {
+        *p = pix;
+    }
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(litex_video_blitbuf_obj, litex_video_blitbuf);
 
 
 static const mp_map_elem_t litex_video_locals_dict_table[] = {
-	{ MP_OBJ_NEW_QSTR(MP_QSTR_width), (mp_obj_t) &litex_video_width_obj },
-	{ MP_OBJ_NEW_QSTR(MP_QSTR_height), (mp_obj_t) &litex_video_height_obj },
-	{ MP_OBJ_NEW_QSTR(MP_QSTR_bpp), (mp_obj_t) &litex_video_bpp_obj },
-	{ MP_OBJ_NEW_QSTR(MP_QSTR_stride), (mp_obj_t) &litex_video_stride_obj },
-	{ MP_OBJ_NEW_QSTR(MP_QSTR_blitbuf), (mp_obj_t) &litex_video_blitbuf_obj },
+    { MP_OBJ_NEW_QSTR(MP_QSTR_width), (mp_obj_t)&litex_video_width_obj },
+    { MP_OBJ_NEW_QSTR(MP_QSTR_height), (mp_obj_t)&litex_video_height_obj },
+    { MP_OBJ_NEW_QSTR(MP_QSTR_bpp), (mp_obj_t)&litex_video_bpp_obj },
+    { MP_OBJ_NEW_QSTR(MP_QSTR_stride), (mp_obj_t)&litex_video_stride_obj },
+    { MP_OBJ_NEW_QSTR(MP_QSTR_blitbuf), (mp_obj_t)&litex_video_blitbuf_obj },
 };
 
 static MP_DEFINE_CONST_DICT(litex_video_locals_dict, litex_video_locals_dict_table);
 
 MP_DEFINE_CONST_OBJ_TYPE(
-	litex_video_type,
-	MP_QSTR_Video,
-	MP_TYPE_FLAG_NONE,
-	make_new, litex_video_make_new,
-	print, litex_video_print,
-	buffer, video_get_buffer,
-	locals_dict, &litex_video_locals_dict
-	);
+    litex_video_type,
+    MP_QSTR_Video,
+    MP_TYPE_FLAG_NONE,
+    make_new, litex_video_make_new,
+    print, litex_video_print,
+    buffer, video_get_buffer,
+    locals_dict, &litex_video_locals_dict
+    );
 
-#endif //CSR_VIDEO_FRAMEBUFFER_BASE
-
+#endif // CSR_VIDEO_FRAMEBUFFER_BASE

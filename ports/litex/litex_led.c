@@ -11,7 +11,7 @@
 
 #if !defined(CSR_LEDS_BASE)
 static inline unsigned char leds_out_read(void) {
-	return 0;
+    return 0;
 }
 
 static inline void leds_out_write(unsigned char value) {
@@ -26,78 +26,78 @@ typedef struct _litex_led_obj_t {
 } litex_led_obj_t;
 
 static litex_led_obj_t litex_leds[8] = {
-	{{&litex_led_type}, 0},
-	{{&litex_led_type}, 1},
-	{{&litex_led_type}, 2},
-	{{&litex_led_type}, 3},
-	{{&litex_led_type}, 4},
-	{{&litex_led_type}, 5},
-	{{&litex_led_type}, 6},
-	{{&litex_led_type}, 7}
+    {{&litex_led_type}, 0},
+    {{&litex_led_type}, 1},
+    {{&litex_led_type}, 2},
+    {{&litex_led_type}, 3},
+    {{&litex_led_type}, 4},
+    {{&litex_led_type}, 5},
+    {{&litex_led_type}, 6},
+    {{&litex_led_type}, 7}
 };
 
 static mp_obj_t litex_led_make_new(const mp_obj_type_t *type_in,
-		size_t n_args, size_t n_kw, const mp_obj_t *args) {
-	mp_arg_check_num(n_args, n_kw, 1, 1, false);
+    size_t n_args, size_t n_kw, const mp_obj_t *args) {
+    mp_arg_check_num(n_args, n_kw, 1, 1, false);
 
-	mp_uint_t led_num = mp_obj_get_int(args[0]);
+    mp_uint_t led_num = mp_obj_get_int(args[0]);
 
-	switch (led_num) {
-	case 0 ... 7:
-		return &litex_leds[led_num];
-	default:
-		nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_ValueError,
-			"not a valid LED number: %d", led_num));
-	}
+    switch (led_num) {
+        case 0 ... 7:
+            return &litex_leds[led_num];
+        default:
+            nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_ValueError,
+                "not a valid LED number: %d", led_num));
+    }
 }
 
 void litex_led_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-	litex_led_obj_t *self = self_in;
-	mp_printf(print, "LED(%u)", self->num);
+    litex_led_obj_t *self = self_in;
+    mp_printf(print, "LED(%u)", self->num);
 }
 
 static mp_obj_t litex_led_on(mp_obj_t self_in) {
-	litex_led_obj_t *led = self_in;
-	char value = leds_out_read();
+    litex_led_obj_t *led = self_in;
+    char value = leds_out_read();
 
-	leds_out_write(value | (1 << led->num));
+    leds_out_write(value | (1 << led->num));
 
-	return mp_const_none;
+    return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(litex_led_on_obj, litex_led_on);
 
 static mp_obj_t litex_led_off(mp_obj_t self_in) {
-	litex_led_obj_t *led = self_in;
-	char value = leds_out_read();
+    litex_led_obj_t *led = self_in;
+    char value = leds_out_read();
 
-	leds_out_write(value & ~(1 << led->num));
+    leds_out_write(value & ~(1 << led->num));
 
-	return mp_const_none;
+    return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(litex_led_off_obj, litex_led_off);
 
 static mp_obj_t litex_led_toggle(mp_obj_t self_in) {
-	litex_led_obj_t *led = self_in;
-	char value = leds_out_read();
+    litex_led_obj_t *led = self_in;
+    char value = leds_out_read();
 
-	leds_out_write(value ^ (1 << led->num));
+    leds_out_write(value ^ (1 << led->num));
 
-	return mp_const_none;
+    return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(litex_led_toggle_obj, litex_led_toggle);
 
 static const mp_map_elem_t litex_led_locals_dict_table[] = {
-	{ MP_OBJ_NEW_QSTR(MP_QSTR_on),     (mp_obj_t)&litex_led_on_obj   },
-	{ MP_OBJ_NEW_QSTR(MP_QSTR_off),    (mp_obj_t)&litex_led_off_obj  },
-	{ MP_OBJ_NEW_QSTR(MP_QSTR_toggle), (mp_obj_t)&litex_led_toggle_obj },
+    { MP_OBJ_NEW_QSTR(MP_QSTR_on),     (mp_obj_t)&litex_led_on_obj   },
+    { MP_OBJ_NEW_QSTR(MP_QSTR_off),    (mp_obj_t)&litex_led_off_obj  },
+    { MP_OBJ_NEW_QSTR(MP_QSTR_toggle), (mp_obj_t)&litex_led_toggle_obj },
 };
 static MP_DEFINE_CONST_DICT(litex_led_locals_dict, litex_led_locals_dict_table);
 
 MP_DEFINE_CONST_OBJ_TYPE(
-	litex_led_type,
-	MP_QSTR_LED,
-	MP_TYPE_FLAG_NONE,
-	make_new, litex_led_make_new,
-	print, litex_led_print,
-	locals_dict, &litex_led_locals_dict
-	);
+    litex_led_type,
+    MP_QSTR_LED,
+    MP_TYPE_FLAG_NONE,
+    make_new, litex_led_make_new,
+    print, litex_led_print,
+    locals_dict, &litex_led_locals_dict
+    );

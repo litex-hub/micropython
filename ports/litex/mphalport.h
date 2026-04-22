@@ -13,10 +13,11 @@ static inline int mp_hal_stdin_rx_chr(void) {
     char c;
     c = uart_read();
     /* \n to \r conversion for litex_term */
-    if (c == '\n')
+    if (c == '\n') {
         return '\r';
-    else
+    } else {
         return c;
+    }
 }
 
 // Send the string of given length, returning the number of bytes actually
@@ -42,7 +43,7 @@ static inline mp_uint_t mp_hal_stdout_tx_strn(const char *str, size_t len) {
 
 #ifdef LITEGPIO_ENABLED
 
-//these macros reference main GPIO instance
+// these macros reference main GPIO instance
 #define mp_hal_pin_input(p)      litegpio_mode_input(litegpio0, p)
 #define mp_hal_pin_output(p)     litegpio_mode_output(litegpio0, p)
 #define mp_hal_pin_low(p)        litegpio_set_low(litegpio0, p)
@@ -58,18 +59,18 @@ static inline mp_uint_t mp_hal_stdout_tx_strn(const char *str, size_t len) {
 
 mp_hal_pin_obj_t machine_pin_get_id(const mp_obj_t pin_in);
 #define mp_hal_get_pin_obj(o) machine_pin_get_id(o)
-//#define machine_pin_get_id(o) mp_hal_get_pin_obj(o) //deprecated
+// #define machine_pin_get_id(o) mp_hal_get_pin_obj(o) //deprecated
 
 
 #else
 
-//no GPIO enabled in SoC definition
+// no GPIO enabled in SoC definition
 #define mp_hal_pin_input(p) (void)(p)
 #define mp_hal_pin_output(p) (void)(p)
 #define mp_hal_pin_open_drain(p) (void)(p)
 #define mp_hal_pin_od_low(p) (void)(p)
 #define mp_hal_pin_od_high(p) (void)(p)
-#define mp_hal_get_pin_obj(p) (-1) //no pins possible
+#define mp_hal_get_pin_obj(p) (-1) // no pins possible
 #define mp_hal_pin_read(p) 0
 #define mp_hal_pin_write(p, v) (void)(p)
 
