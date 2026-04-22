@@ -60,7 +60,9 @@ void do_str(const char *src, mp_parse_input_kind_t input_kind) {
 
 static char *stack_top;
 #ifdef MICROPY_HW_SDRAM_AVAIL
-extern char _edata_rom, _emain_ram;
+// _end is at the top of .bss (now in main_ram, see linker.ld); the heap
+// extends from there to _emain_ram. Both come from the linker.
+extern char _end, _emain_ram;
 #endif
 
 #if MICROPY_HW_SDCARD_MOUNT_AT_BOOT
@@ -183,7 +185,7 @@ int upython_main(int argc, char **argv) {
     #if MICROPY_ENABLE_GC
     {
         #ifdef MICROPY_HW_SDRAM_SIZE
-        void *heap_start = &_edata_rom, *heap_end = &_emain_ram; // TODO: move this logic to the C SDK
+        void *heap_start = &_end, *heap_end = &_emain_ram;
 
         #ifdef CSR_VIDEO_FRAMEBUFFER_BASE
         #warning A ram region for the video framebuffer should be allocated in linker scripts

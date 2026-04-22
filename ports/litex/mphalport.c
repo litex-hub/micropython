@@ -27,8 +27,18 @@ uint64_t mp_hal_time_ns(void) {
     return LITETIMER_PERIOD_FROM_CYCLES64(litex_uptime(), 1000000000ull);
 }
 
+#if MICROPY_PY_LWIP
+extern void litex_lwip_poll(void);
+#endif
+
 void mp_hal_delay_ms(mp_uint_t ms) {
     mp_uint_t start = mp_hal_ticks_ms();
     while (mp_hal_ticks_ms() - start < ms) {
+        // Pump lwIP from blocking sleeps so DHCP / TCP retransmits make
+        // progress while user code is in time.sleep / socket recv. Cheap
+        // when no netif is active.
+        #if MICROPY_PY_LWIP
+        litex_lwip_poll();
+        #endif
     }
 }

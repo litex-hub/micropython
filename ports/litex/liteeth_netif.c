@@ -35,9 +35,16 @@
 #include "lwip/netif.h"
 #include "lwip/pbuf.h"
 #include "lwip/snmp.h"
+#include "lwip/sys.h"
 #include "netif/ethernet.h"
 
 #include "liteeth_netif.h"
+
+// lwIP requires the port to provide sys_now() returning ms-since-boot.
+// We have mp_hal_ticks_ms() which is exactly that.
+u32_t sys_now(void) {
+    return (u32_t)mp_hal_ticks_ms();
+}
 
 // LiteEth's slot-allocation state we track in software. The MAC tells us
 // "the next RX is in slot N" via the writer_slot CSR; for TX we round-
