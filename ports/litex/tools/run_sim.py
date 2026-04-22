@@ -101,10 +101,33 @@ class PtyRepl:
         os.close(self.fd)
 
     def write(self, data):
+        # Split into modest chunks so that we never push more bytes than the
+        # firmware's UART RX FIFO + libbase software ring buffer can hold
+        # while we wait for the reader-side ISR to drain. The firmware's
+        # libbase ring buffer is 128 bytes and the hardware FIFO is 16 by
+        # default, but the LiteX sim's UART model can deliver bytes faster
+        # than the ISR runs, so any extra in flight gets dropped silently
+        # by the firmware. Chunking + a tiny inter-chunk yield keeps the
+        # writer paced to whatever the firmware can absorb.
         if self.verbose:
             sys.stderr.write(f"[tx {data!r}]\n")
             sys.stderr.flush()
-        os.write(self.fd, data)
+        chunk_size = 64
+        for i in range(0, len(data), chunk_size):
+            chunk = data[i:i + chunk_size]
+            view = memoryview(chunk)
+            while view:
+                try:
+                    n = os.write(self.fd, view)
+                    view = view[n:]
+                except BlockingIOError:
+                    self._read_available()
+                    time.sleep(0.01)
+            # Yield so the firmware's RX ISR has a chance to drain the
+            # FIFO before we pile in another chunk. On a 1 MHz simulated
+            # CPU 50 ms is generous; on hardware it's invisible.
+            if i + chunk_size < len(data):
+                time.sleep(0.05)
 
     def _read_available(self):
         try:
