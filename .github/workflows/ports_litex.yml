@@ -77,7 +77,7 @@ jobs:
     - name: Install packages
       run: tools/ci.sh litex_setup
     - name: Build firmware and run sim tests (${{ matrix.cpu }} / ${{ matrix.variant }})
-      run: tools/ci.sh litex_build_sim ${{ matrix.cpu }} ${{ matrix.variant }}
+      run: tools/ci.sh litex_build_sim_${{ matrix.variant }}
     - name: Dump sim log on failure
       if: failure()
       run: |
@@ -118,4 +118,4 @@ jobs:
     - name: Install packages
       run: tools/ci.sh litex_setup
     - name: Build firmware for ${{ matrix.board }}
-      run: tools/ci.sh litex_build_board ${{ matrix.board }}
+      run: tools/ci.sh litex_build_board_${{ matrix.board }}
