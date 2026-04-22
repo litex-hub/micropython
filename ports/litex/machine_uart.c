@@ -33,6 +33,10 @@
 #include <generated/csr.h>
 #include <generated/soc.h>
 
+// litex_isr_register lives in modlitex.c; the IRQ-firing path of UART.irq()
+// hooks into the same dispatcher as litex.EventManager.irq().
+#include "litex_isr.h"
+
 // Only build this module if at least one secondary UART is exposed by the
 // SoC. Without that, machine.UART() doesn't appear in the machine module —
 // users get a clean AttributeError instead of a "no UARTs" runtime error.
@@ -56,20 +60,33 @@ typedef struct _machine_uart_obj_t {
     mp_obj_base_t base;
     uint32_t csr_base;
     int id;
+    int irq_bit;        // CPU IRQ bit for this UART, -1 if no IRQ wired
 } machine_uart_obj_t;
+
+// Compile-time UART_n_INTERRUPT may not be defined on SoC variants that
+// disable the per-UART IRQ; fall back to -1 so .irq() raises cleanly.
+#ifndef UART1_INTERRUPT
+#define UART1_INTERRUPT (-1)
+#endif
+#ifndef UART2_INTERRUPT
+#define UART2_INTERRUPT (-1)
+#endif
+#ifndef UART3_INTERRUPT
+#define UART3_INTERRUPT (-1)
+#endif
 
 // Static table of all available UARTs on this SoC. Populated at compile
 // time from the CSR_UART<N>_BASE macros; entries don't exist for UARTs
 // the SoC wasn't built with.
 static machine_uart_obj_t machine_uart_objs[] = {
     #ifdef CSR_UART1_BASE
-    { .base = { NULL }, .csr_base = CSR_UART1_BASE, .id = 1 },
+    { .base = { NULL }, .csr_base = CSR_UART1_BASE, .id = 1, .irq_bit = UART1_INTERRUPT },
     #endif
     #ifdef CSR_UART2_BASE
-    { .base = { NULL }, .csr_base = CSR_UART2_BASE, .id = 2 },
+    { .base = { NULL }, .csr_base = CSR_UART2_BASE, .id = 2, .irq_bit = UART2_INTERRUPT },
     #endif
     #ifdef CSR_UART3_BASE
-    { .base = { NULL }, .csr_base = CSR_UART3_BASE, .id = 3 },
+    { .base = { NULL }, .csr_base = CSR_UART3_BASE, .id = 3, .irq_bit = UART3_INTERRUPT },
     #endif
 };
 #define MACHINE_UART_COUNT \
@@ -182,6 +199,47 @@ static mp_uint_t machine_uart_write(mp_obj_t self_in, const void *buf_in, mp_uin
     return size;
 }
 
+// uart.irq(handler, trigger=UART.IRQ_RX) — register a Python callback for
+// this UART's IRQ. The callback is scheduled (mp_sched_schedule) when an
+// enabled UART event fires; the dispatcher write-1-clears ev_pending on
+// the way out so the IRQ deasserts and the handler runs in main-task
+// context (not from interrupt context).
+//
+// trigger is the bitwise-OR of UART.IRQ_RX (data available) and
+// UART.IRQ_TX (TX FIFO drained); the same value is written to ev_enable
+// so only those events raise the IRQ. Pass handler=None to remove the
+// registration and disable all UART events.
+//
+// On SoCs that built this UART without an IRQ (UART<N>_INTERRUPT undef'd
+// at csr.h time), .irq() raises ValueError.
+static mp_obj_t machine_uart_irq(size_t n_args, const mp_obj_t *args) {
+    machine_uart_obj_t *self = MP_OBJ_TO_PTR(args[0]);
+    if (self->irq_bit < 0) {
+        mp_raise_msg_varg(&mp_type_ValueError,
+            MP_ERROR_TEXT("UART(%d) has no IRQ wired"), self->id);
+    }
+    mp_obj_t handler = args[1];
+    uint32_t trigger = (n_args > 2)
+        ? (uint32_t)mp_obj_get_int_truncated(args[2])
+        : LITEX_UART_EV_RX;
+
+    if (handler == mp_const_none) {
+        // Mask events at the peripheral first so we don't get one last IRQ
+        // between the unregister and the actual mask.
+        uart_reg_write(self, LITEX_UART_EV_ENABLE_OFFSET, 0);
+        litex_isr_register(self->irq_bit,
+            self->csr_base + LITEX_UART_EV_PENDING_OFFSET,
+            mp_const_none, MP_OBJ_NULL);
+    } else {
+        litex_isr_register(self->irq_bit,
+            self->csr_base + LITEX_UART_EV_PENDING_OFFSET,
+            handler, args[0]);
+        uart_reg_write(self, LITEX_UART_EV_ENABLE_OFFSET, trigger);
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(machine_uart_irq_obj, 2, 3, machine_uart_irq);
+
 static mp_uint_t machine_uart_ioctl(mp_obj_t self_in, mp_uint_t request, uintptr_t arg, int *errcode) {
     machine_uart_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_uint_t ret;
@@ -211,6 +269,11 @@ static const mp_rom_map_elem_t machine_uart_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_readinto), MP_ROM_PTR(&mp_stream_readinto_obj) },
     { MP_ROM_QSTR(MP_QSTR_readline), MP_ROM_PTR(&mp_stream_unbuffered_readline_obj) },
     { MP_ROM_QSTR(MP_QSTR_write),    MP_ROM_PTR(&mp_stream_write_obj) },
+
+    // IRQ-driven RX support. trigger= takes UART.IRQ_RX and/or UART.IRQ_TX.
+    { MP_ROM_QSTR(MP_QSTR_irq),      MP_ROM_PTR(&machine_uart_irq_obj) },
+    { MP_ROM_QSTR(MP_QSTR_IRQ_TX),   MP_ROM_INT(LITEX_UART_EV_TX) },
+    { MP_ROM_QSTR(MP_QSTR_IRQ_RX),   MP_ROM_INT(LITEX_UART_EV_RX) },
 };
 static MP_DEFINE_CONST_DICT(machine_uart_locals_dict, machine_uart_locals_dict_table);
 
