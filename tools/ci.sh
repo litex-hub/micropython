@@ -432,6 +432,19 @@ function ci_litex_build_sim {
     make -C ports/litex BUILD_DIRECTORY="$out" test TESTS="$tests"
 }
 
+# Matrix-style wrappers for the workflow. _ci_main's `ci_$1` dispatch
+# doesn't pass extra positional args to the called function, so each
+# matrix leg gets its own entry point.
+function ci_litex_build_sim_base {
+    ci_litex_build_sim vexriscv base
+}
+function ci_litex_build_sim_ethernet {
+    ci_litex_build_sim vexriscv ethernet
+}
+function ci_litex_build_board_digilent_arty {
+    ci_litex_build_board digilent_arty
+}
+
 function ci_litex_build_board {
     set -x
     # Usage: ci_litex_build_board <board>
