@@ -1,6 +1,7 @@
 name: litex port
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - '.github/workflows/ports_litex.yml'
