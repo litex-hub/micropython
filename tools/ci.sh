@@ -400,6 +400,9 @@ function ci_litex_build_sim {
     if [ "$variant" = "ethernet" ]; then
         extra_sim_args+=(--with-ethernet)
         tests="$tests test/test_lan.py"
+        # lwIP lives in lib/lwip — actions/checkout doesn't init
+        # submodules by default. Bring it in directly.
+        git submodule update --init lib/lwip
         # litex_sim's sim PHY needs a tap interface to actually move
         # packets. Create one before launching; ifconfig is enough since
         # test_lan.py is API-only (no actual round-trip required).
