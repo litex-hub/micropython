@@ -58,10 +58,16 @@ static MP_DEFINE_CONST_FUN_OBJ_0(machine_identifier_obj, machine_identifier);
 
 // machine.freq() — LiteX SoCs have a single fixed sys_clk_freq baked in at
 // SoC-generation time; expose it but don't pretend we can retune it.
-static mp_obj_t machine_freq(void) {
+//
+// Named *_litex_freq_obj rather than machine_freq_obj to dodge a name
+// collision with extmod/modmachine.h, which declares machine_freq_obj
+// extern (only defined when MICROPY_PY_MACHINE_BARE_METAL_FUNCS=1, which
+// we don't enable). The user-visible attribute is still 'freq' via the
+// EXTRA_GLOBALS table below.
+static mp_obj_t litex_machine_freq(void) {
     return MP_OBJ_NEW_SMALL_INT(CONFIG_CLOCK_FREQUENCY);
 }
-static MP_DEFINE_CONST_FUN_OBJ_0(machine_freq_obj, machine_freq);
+static MP_DEFINE_CONST_FUN_OBJ_0(litex_machine_freq_obj, litex_machine_freq);
 
 // Per-SoC peripheral entries, each gated by the corresponding CSR so the
 // Python-visible module always matches the hardware the SoC was built with.
@@ -116,7 +122,7 @@ static MP_DEFINE_CONST_FUN_OBJ_0(machine_freq_obj, machine_freq);
 
 #define MICROPY_PY_MACHINE_EXTRA_GLOBALS \
     { MP_ROM_QSTR(MP_QSTR_identifier), MP_ROM_PTR(&machine_identifier_obj) }, \
-    { MP_ROM_QSTR(MP_QSTR_freq),       MP_ROM_PTR(&machine_freq_obj) }, \
+    { MP_ROM_QSTR(MP_QSTR_freq),       MP_ROM_PTR(&litex_machine_freq_obj) }, \
     MACHINE_PIN_ENTRY                                                   \
     MACHINE_SPI_ENTRY                                                   \
     MACHINE_TIMER_ENTRY                                                 \

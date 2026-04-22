@@ -32,15 +32,22 @@
 // extended modules
 #define MICROPY_PY_MACHINE_INCLUDEFILE      "ports/litex/modmachine.c"
 #define MICROPY_PY_MACHINE_RESET            (1)
-#define MICROPY_PY_MACHINE_SPI              (1)
+// MICROPY_PY_MACHINE_SPI / _I2C would expose a hardware machine.SPI /
+// machine.I2C from extmod, expecting the port to provide
+// machine_spi_type / machine_i2c_type. The LiteX port's hardware SPI is
+// exposed under that name via MICROPY_PY_MACHINE_EXTRA_GLOBALS in
+// modmachine.c, and there is no hardware I2C — only SoftI2C. So leave
+// the extmod-side flags off; SOFTSPI / SOFTI2C give us the bit-banged
+// classes machine.SoftSPI / machine.SoftI2C anyway.
 #define MICROPY_PY_MACHINE_SPI_MSB          (1)
 #define MICROPY_PY_MACHINE_SPI_LSB          (0)
 #define MICROPY_PY_MACHINE_SOFTSPI          (1)
-#define MICROPY_PY_MACHINE_I2C              (1)
 #define MICROPY_PY_MACHINE_SOFTI2C          (1)
 #define MICROPY_PY_TIME                     (1)
-#define MICROPY_PY_TIME_GMTIME_LOCALTIME_MKTIME (1)
-#define MICROPY_PY_TIME_TIME_TIME_NS        (1)
+// _GMTIME_LOCALTIME_MKTIME and _TIME_TIME_NS need an RTC accessor
+// (mp_time_localtime_get / mp_time_time_get). LiteX SoCs don't ship a
+// generic RTC peripheral, so leave them off — time.ticks_ms / .sleep
+// still work via mp_hal_ticks_ms / mp_hal_delay_ms in mphalport.c.
 #define MICROPY_PY_OS                       (1)
 #define MICROPY_PY_OS_UNAME                 (1)
 
