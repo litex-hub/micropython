@@ -45,7 +45,7 @@ jobs:
     - name: Cache apt packages
       uses: awalsh128/cache-apt-pkgs-action@v1
       with:
-        packages: gcc-riscv64-unknown-elf verilator socat libevent-dev libjson-c-dev
+        packages: gcc-riscv64-unknown-elf picolibc-riscv64-unknown-elf verilator socat libevent-dev libjson-c-dev meson ninja-build wget python3-pip
         version: 1.0
     # Cache LiteX install (~/.local from `pip --user`, ~/litex from
     # `litex_setup.py --init`). Cold install is ~3 min; cached restore
@@ -96,7 +96,7 @@ jobs:
     - name: Cache apt packages
       uses: awalsh128/cache-apt-pkgs-action@v1
       with:
-        packages: gcc-riscv64-unknown-elf verilator socat libevent-dev libjson-c-dev
+        packages: gcc-riscv64-unknown-elf picolibc-riscv64-unknown-elf verilator socat libevent-dev libjson-c-dev meson ninja-build wget python3-pip
         version: 1.0
     - name: Cache LiteX install
       id: cache-litex
