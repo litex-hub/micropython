@@ -91,7 +91,11 @@ INC += -I$(CPU_DIRECTORY)
 # gcc-riscv64-unknown-elf, which CI uses). Toolchains like SiFive GCC
 # that bundle newlib also work without this — the picolibc path is
 # just ignored because its headers cover the same stdlib surface.
+# The second `libc` path is where meson generates `picolibc.h` during
+# the libc build (mirrors `-I$(BUILDINC_DIRECTORY)/../libc` from
+# LiteX's own soc/software/common.mak).
 INC += -I$(PICOLIBC_DIRECTORY)/libc/include
+INC += -I$(BUILD_DIRECTORY)/software/libc
 
 # Set LDFLAGS.
 #
