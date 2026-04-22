@@ -1,26 +1,31 @@
 // Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
 // License: BSD-2-Clause
 //
-// machine.ADC — generic ADC wrapper, portable across LiteX ADC cores.
+// machine.ADC — generic ADC wrapper for the XADC / System Monitor family.
 //
-// LiteX ships several ADC-flavoured cores that all reduce to "read a CSR to
-// get an N-bit raw sample":
+// Upstream LiteX ships one ADC core today: `litex.soc.cores.xadc`, with
+// per-FPGA variants:
 //
-//     * Xilinx 7-Series XADC          (xadc_temperature, _vccint, ...)
-//     * Xilinx UltraScale SysMon      (sysmon_temperature, ...)
-//     * LiteADC user analog channels  (liteadc_data, ...)
-//     * Custom user CSR-mapped ADCs   (any 12/16-bit RO CSR)
+//     * `S7SystemMonitor`     (Xilinx 7-series XADC,            12-bit)
+//     * `USSystemMonitor`     (Xilinx UltraScale System Monitor,10-bit)
+//     * `USPSystemMonitor`    (Xilinx UltraScale+ System Monitor,10-bit)
+//     * `ZynqUSPSystemMonitor`(adds vccpsint{lp,fp}, vccpsaux,  10-bit)
 //
-// Rather than hard-code knowledge of each core, machine.ADC accepts the
-// CSR name directly and resolves it through the build-time CSR lookup
-// table. Numeric ids and a small set of well-known symbolic aliases are
-// kept as syntactic sugar for the common XADC / SysMon channels.
+// All of them register a fixed set of `<prefix>_<channel>` CSRStatus
+// registers (each channel auto-sequenced internally — no channel-select
+// CSR needed). The prefix defaults to `xadc` or `sysmon` but is
+// user-configurable via `soc.add_module(name=..., ...)`.
+//
+// Rather than hard-code knowledge of each variant, machine.ADC accepts
+// the CSR name directly and resolves it through the build-time CSR
+// lookup table. Numeric ids and a small set of well-known symbolic
+// aliases are kept as syntactic sugar for the common channels.
 //
 //     >>> import machine
-//     >>> a = machine.ADC('xadc_temperature')   # any LiteX ADC CSR
+//     >>> a = machine.ADC('xadc_temperature')   # any RO ADC CSR
 //     >>> a = machine.ADC('temperature')        # XADC alias (if present)
 //     >>> a = machine.ADC(0)                    # XADC channel 0
-//     >>> a = machine.ADC('myadc_value', bits=10)
+//     >>> a = machine.ADC('myadc_value', bits=10)  # custom CSR-mapped ADC
 //
 // read() returns the raw N-bit sample. read_u16() shifts so the result
 // spans the full 0..65535 range, matching machine.ADC on every other
@@ -44,8 +49,7 @@ extern const litex_csr_entry_t *litex_csr_lookup(const char *name);
 // Without that, machine.ADC isn't built (and isn't exposed on the machine
 // module by modmachine.c).
 #if defined(CSR_XADC_TEMPERATURE_ADDR) \
-    || defined(CSR_SYSMON_TEMPERATURE_ADDR) \
-    || defined(CSR_LITEADC_DATA_ADDR)
+    || defined(CSR_SYSMON_TEMPERATURE_ADDR)
 #define LITEX_HAS_ADC 1
 #endif
 
@@ -90,10 +94,21 @@ static const machine_adc_alias_t machine_adc_aliases[] = {
     #ifdef CSR_SYSMON_VCCAUX_ADDR
     { "vccaux",      2, "sysmon_vccaux",      12 },
     #endif
-    // LiteADC-style cores are usually multi-channel; the CSR name is just
-    // "<core>_data" with a separate channel-select CSR. We can't model that
-    // here without knowing the core's API, so users instantiate
-    // machine.ADC('liteadc_data', bits=N) directly.
+    // ZynqUSPSystemMonitor adds three Zynq-specific power rails. They
+    // share `temperature`/`vccint`/`vccaux` aliases with the base
+    // SystemMonitor (already covered above) and add these:
+    #ifdef CSR_SYSMON_VCCPSINTLP_ADDR
+    { "vccpsintlp", 4, "sysmon_vccpsintlp", 12 },
+    #endif
+    #ifdef CSR_SYSMON_VCCPSINTFP_ADDR
+    { "vccpsintfp", 5, "sysmon_vccpsintfp", 12 },
+    #endif
+    #ifdef CSR_SYSMON_VCCPSAUX_ADDR
+    { "vccpsaux",   6, "sysmon_vccpsaux",   12 },
+    #endif
+    // For SoCs that wrap an external/custom ADC core whose CSRs follow a
+    // different naming pattern, just instantiate by CSR name:
+    //   machine.ADC('myadc_value', bits=N)
     { NULL, -1, NULL, 0 },  // sentinel
 };
 

@@ -29,8 +29,7 @@ extern const mp_obj_type_t machine_uart_type;
 // the same composite condition here so the type is exposed iff one of those
 // cores is present.
 #if defined(CSR_XADC_TEMPERATURE_ADDR) \
-    || defined(CSR_SYSMON_TEMPERATURE_ADDR) \
-    || defined(CSR_LITEADC_DATA_ADDR)
+    || defined(CSR_SYSMON_TEMPERATURE_ADDR)
 extern const mp_obj_type_t machine_adc_type;
 #define LITEX_HAS_ADC 1
 #endif
