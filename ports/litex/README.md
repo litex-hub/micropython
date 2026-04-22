@@ -192,6 +192,22 @@ u.write(b"hello\n")
 line = u.readline()
 ```
 
+IRQ-driven RX is supported via `.irq()`:
+
+```python
+def on_rx(uart):
+    print("got:", uart.read())
+
+u.irq(on_rx, machine.UART.IRQ_RX)
+# ...later:
+u.irq(None)            # unregister
+```
+
+The handler runs in main-task context (scheduled via mp_sched_schedule
+from the C-level isr() dispatcher in `litex_isr.h`). Same plumbing as
+`litex.EventManager.irq()` — UART just knows its CPU IRQ bit and
+ev_pending address at compile time.
+
 System-monitor ADC
 ------------------
 
