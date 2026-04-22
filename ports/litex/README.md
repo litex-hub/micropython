@@ -118,10 +118,13 @@ table proportional to the heap at startup and a simulated 1 MHz CPU
 takes tens of minutes to do that on 256 MiB. Passing `--ram-size=...`
 to `tools/run_sim.py` overrides it.
 
-The sim's UART runs at an effective ~1100 baud, so scripts larger than a
-hundred bytes or so hit the raw-REPL send timeout. Hardware has no such
-limit; large tests like `test_machine.py` / `test_time.py` are intended
-to be run against a real board via `pyboard.py`.
+The sim UART is a LiteX `RS232PHYModel` — a byte-level valid/ready stream
+with no per-bit baud timing — so the effective throughput is whatever
+Verilator can simulate, not 115200. `tools/run_sim.py` chunks its writes
+to 64 bytes with a 50 ms inter-chunk pause so the firmware's 128-byte
+libbase RX ring buffer always has room; hundreds-of-bytes test scripts
+run comfortably this way. Hardware is straight RS-232 at whatever baud
+the SoC was generated with (115200 by default).
 
 The `litex` module
 ------------------
@@ -139,7 +142,7 @@ exactly — no hand-maintained duplication.
 'f377764d7'
 >>> litex.bus_standard()
 'wishbone'
->>> hex(litex.CSR_BASE)
+>>> hex(litex.CSR_BASE())
 '0xf0000000'
 >>> litex.info()
 LiteX SoC
@@ -151,9 +154,9 @@ LiteX SoC
   ROM base:  0x00000000 (size 0x00020000)
 
 >>> # Raw MMIO — useful during peripheral bring-up before a class exists.
->>> litex.read32(litex.CSR_BASE + 0x1000)
+>>> litex.read32(litex.CSR_BASE() + 0x1000)
 0xcafe0001
->>> litex.write32(litex.CSR_BASE + 0x1000, 0)
+>>> litex.write32(litex.CSR_BASE() + 0x1000, 0)
 
 >>> # By-name CSR access — addresses come from a build-time lookup table
 >>> # generated from the SoC's csr.json, so it stays in sync with the
