@@ -65,6 +65,14 @@
 #ifndef MICROPY_PY_NETWORK_HOSTNAME_DEFAULT
 #define MICROPY_PY_NETWORK_HOSTNAME_DEFAULT "litex"
 #endif
+// Drive RX polling + sys_check_timeouts from the VM loop. Cheap when
+// the netif is inactive (one bool check). Until ETHMAC_INTERRUPT
+// dispatch is wired this is the only thing pumping lwIP.
+extern void litex_lwip_poll(void);
+#define MICROPY_VM_HOOK_LOOP litex_lwip_poll();
+#define MICROPY_PORT_NETWORK_INTERFACES \
+    { MP_ROM_QSTR(MP_QSTR_LAN), MP_ROM_PTR(&network_lan_type) },
+extern const struct _mp_obj_type_t network_lan_type;
 #endif
 
 // Type definitions for the specific machine
