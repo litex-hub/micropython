@@ -25,20 +25,20 @@
  * THE SOFTWARE.
  *
  */
-//portions from spisdcard.c
+// portions from spisdcard.c
 // This file is Copyright (c) 2020 Florent Kermarrec <florent@enjoy-digital.fr>
 // This file is Copyright (c) 2020 Rob Shelton <rob.s.ng15@googlemail.com>
 // License: BSD
 
-//This module, meant for LiteX, is based on machine_hw_spi.c from the ESP32 port.
-//Since most code is kept without modification, a generic module with
-//basic functionality could be written that only depends on a thin HAL
-//to ease code reuse and porting, useful for both for ESP32 and LiteX
-//implementation or for future platforms
+// This module, meant for LiteX, is based on machine_hw_spi.c from the ESP32 port.
+// Since most code is kept without modification, a generic module with
+// basic functionality could be written that only depends on a thin HAL
+// to ease code reuse and porting, useful for both for ESP32 and LiteX
+// implementation or for future platforms
 //
-//SPI functions for accessing CSR register are from spisdcard.c
-//ideally should be also merged (spisdcard_* functions are replaced
-//by spi0_*)
+// SPI functions for accessing CSR register are from spisdcard.c
+// ideally should be also merged (spisdcard_* functions are replaced
+// by spi0_*)
 
 #include <stdio.h>
 #include <stdint.h>
@@ -49,16 +49,16 @@
 #include "py/mphal.h"
 #include "extmod/modmachine.h"
 
-//NOTE: if support for ESP32 in same will never be required, all code
-//within all references to "#ifdef ESP32" can be removed
+// NOTE: if support for ESP32 in same will never be required, all code
+// within all references to "#ifdef ESP32" can be removed
 #ifdef ESP32
 #include "modmachine.h"
 #include "driver/spi_master.h"
 #define USE_HARDWARE_SPI
 #else
-extern const mp_obj_type_t machine_hw_spi_type; //forward declaration
+extern const mp_obj_type_t machine_hw_spi_type; // forward declaration
 #ifdef CSR_SPI_BASE
-//rename methdos: TODO: better, define a SDK module
+// rename methdos: TODO: better, define a SDK module
 #define spi0_cs_write spi_cs_write
 #define spi0_cs_read spi_cs_read
 #define spi0_control_write spi_control_write
@@ -79,9 +79,9 @@ extern const mp_obj_type_t machine_hw_spi_type; //forward declaration
 #endif
 
 #ifndef ESP32
-//TODO: any micropyhon SPI implementation could be refactored to require
-//only the following functions as hardware specialization:
-//spi_set_clk_freq, spi_xfer, spi_select, spi_deselect
+// TODO: any micropyhon SPI implementation could be refactored to require
+// only the following functions as hardware specialization:
+// spi_set_clk_freq, spi_xfer, spi_select, spi_deselect
 
 /*-----------------------------------------------------------------------*/
 /* SPI Master Flags                                                      */
@@ -100,16 +100,17 @@ extern const mp_obj_type_t machine_hw_spi_type; //forward declaration
 
 static void spi_set_clk_freq(uint32_t clk_freq) {
     uint32_t divider;
-    divider = CONFIG_CLOCK_FREQUENCY/clk_freq + 1;
-    divider = divider < 2 ? 2:divider; //min
-    divider = divider > 256 ? 256:divider; //max
-#ifdef _DEBUG
+    divider = CONFIG_CLOCK_FREQUENCY / clk_freq + 1;
+    divider = divider < 2 ? 2:divider; // min
+    divider = divider > 256 ? 256:divider; // max
+    #ifdef _DEBUG
     printf("Setting SPI clk freq to ");
-    if (clk_freq > 1000000)
-        printf("%ld MHz\n", (CONFIG_CLOCK_FREQUENCY/divider)/1000000);
-    else
-        printf("%ld KHz\n", (CONFIG_CLOCK_FREQUENCY/divider)/1000);
-#endif
+    if (clk_freq > 1000000) {
+        printf("%ld MHz\n", (CONFIG_CLOCK_FREQUENCY / divider) / 1000000);
+    } else {
+        printf("%ld KHz\n", (CONFIG_CLOCK_FREQUENCY / divider) / 1000);
+    }
+    #endif
     spi0_clk_divider_write(divider);
 }
 
@@ -136,30 +137,35 @@ static uint8_t spi_xfer(uint8_t byte) {
     /* Write byte on MOSI */
     spi0_mosi_write(byte);
     /* Initiate SPI Xfer */
-    spi0_control_write(8*SPI_LENGTH | SPI_START);
+    spi0_control_write(8 * SPI_LENGTH | SPI_START);
     /* Wait SPI Xfer to be done */
-    while(spi0_status_read() != SPI_DONE);
+    while (spi0_status_read() != SPI_DONE) {
+        ;
+    }
     /* Read MISO and return it */
     return spi0_miso_read();
 }
 
-//all following functions are not platform depenent
-static void spi_write_bytes(const uint8_t* buf, size_t n) {
+// all following functions are not platform depenent
+static void spi_write_bytes(const uint8_t *buf, size_t n) {
     size_t i;
-    for (i=0; i<n; i++)
+    for (i = 0; i < n; i++) {
         spi_xfer(buf[i]);
+    }
 }
 
-static void spi_read_bytes(uint8_t* buf, size_t n) {
+static void spi_read_bytes(uint8_t *buf, size_t n) {
     size_t i;
-    for (i=0; i<n; i++)
+    for (i = 0; i < n; i++) {
         buf[i] = spi_xfer(0xff);
+    }
 }
 
-static void spi_readwrite_bytes(uint8_t* dest, const uint8_t *src, size_t n) {
+static void spi_readwrite_bytes(uint8_t *dest, const uint8_t *src, size_t n) {
     size_t i;
-    for (i=0; i<n; i++)
+    for (i = 0; i < n; i++) {
         dest[i] = spi_xfer(src[i]);
+    }
 }
 
 #else
@@ -167,7 +173,7 @@ static void spi_readwrite_bytes(uint8_t* dest, const uint8_t *src, size_t n) {
 #define MP_HW_SPI_MAX_XFER_BYTES (4092)
 #define MP_HW_SPI_MAX_XFER_BITS (MP_HW_SPI_MAX_XFER_BYTES * 8) // Has to be an even multiple of 8
 
-#endif //ESP32
+#endif // ESP32
 
 typedef struct _machine_hw_spi_default_pins_t {
     int8_t sck;
@@ -190,9 +196,9 @@ typedef struct _machine_hw_spi_obj_t {
     int8_t sck;
     int8_t mosi;
     int8_t miso;
-#ifdef ESP32
+    #ifdef ESP32
     spi_device_handle_t spi;
-#endif
+    #endif
     enum {
         MACHINE_HW_SPI_STATE_NONE,
         MACHINE_HW_SPI_STATE_INIT,
@@ -203,21 +209,21 @@ typedef struct _machine_hw_spi_obj_t {
 // Default pin mappings for the hardware SPI instances
 static const machine_hw_spi_default_pins_t machine_hw_spi_default_pins[] = {
     { .sck = MICROPY_HW_SPI1_SCK, .mosi = MICROPY_HW_SPI1_MOSI, .miso = MICROPY_HW_SPI1_MISO },
-#ifdef MICROPY_HW_SPI2_SCK
+    #ifdef MICROPY_HW_SPI2_SCK
     { .sck = MICROPY_HW_SPI2_SCK, .mosi = MICROPY_HW_SPI2_MOSI, .miso = MICROPY_HW_SPI2_MISO },
-#endif
+    #endif
 };
 
-#define SPI_COUNT (sizeof(machine_hw_spi_default_pins)/sizeof(*machine_hw_spi_default_pins))
+#define SPI_COUNT (sizeof(machine_hw_spi_default_pins) / sizeof(*machine_hw_spi_default_pins))
 // Static objects mapping to HSPI and VSPI hardware peripherals
 static machine_hw_spi_obj_t machine_hw_spi_obj[SPI_COUNT];
 
 static void machine_hw_spi_deinit_internal(machine_hw_spi_obj_t *self) {
-#ifndef ESP32
-    //printf("in machine_hw_spi_deinit_internal()");
-    spi_deselect(); //force deselect
+    #ifndef ESP32
+    // printf("in machine_hw_spi_deinit_internal()");
+    spi_deselect(); // force deselect
 
-#else
+    #else
     switch (spi_bus_remove_device(self->spi)) {
         case ESP_ERR_INVALID_ARG:
             mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("invalid configuration"));
@@ -236,23 +242,24 @@ static void machine_hw_spi_deinit_internal(machine_hw_spi_obj_t *self) {
             mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("SPI bus already freed"));
             return;
     }
-#endif
-#ifndef ESP32
-    if(self->host >= 0) //hardware SPI doesn't need to set GPIO
+    #endif
+    #ifndef ESP32
+    if (self->host >= 0) { // hardware SPI doesn't need to set GPIO
         return;
-#endif
+    }
+    #endif
     int8_t pins[3] = {self->miso, self->mosi, self->sck};
     printf("in machine_hw_spi_deinit_internal(), sck=%d, mosi=%d, miso=%d\n", self->sck, self->mosi, self->miso);
 
     for (int i = 0; i < 3; i++) {
         if (pins[i] != -1) {
-#ifdef ESP32
+            #ifdef ESP32
             gpio_pad_select_gpio(pins[i]);
             gpio_matrix_out(pins[i], SIG_GPIO_OUT_IDX, false, false);
             gpio_set_direction(pins[i], GPIO_MODE_INPUT);
-#else
+            #else
             mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("spi pin deinitialization not implemented"));
-#endif
+            #endif
         }
     }
 }
@@ -274,9 +281,9 @@ static void machine_hw_spi_init_internal(
     // implicitly 'changed', since this is the init routine
     bool changed = self->state != MACHINE_HW_SPI_STATE_INIT;
 
-#ifdef ESP32
+    #ifdef ESP32
     esp_err_t ret;
-#endif
+    #endif
 
     machine_hw_spi_obj_t old_self = *self;
 
@@ -286,10 +293,10 @@ static void machine_hw_spi_init_internal(
     }
 
     if (baudrate != -1) {
-#ifdef ESP32
+        #ifdef ESP32
         // calculate the actual clock frequency that the SPI peripheral can produce
         baudrate = spi_get_actual_clock(APB_CLK_FREQ, baudrate, 0);
-#endif
+        #endif
         if (baudrate != self->baudrate) {
             self->baudrate = baudrate;
             changed = true;
@@ -332,11 +339,11 @@ static void machine_hw_spi_init_internal(
     }
 
     if (
-#ifdef ESP32
+        #ifdef ESP32
         self->host != HSPI_HOST
-#else
+        #else
         self->host >= SPI_COUNT
-#endif
+        #endif
         #ifdef VSPI_HOST
         && self->host != VSPI_HOST
         #endif
@@ -353,7 +360,7 @@ static void machine_hw_spi_init_internal(
         return; // no changes
     }
 
-#ifdef ESP32
+    #ifdef ESP32
     spi_bus_config_t buscfg = {
         .miso_io_num = self->miso,
         .mosi_io_num = self->mosi,
@@ -411,14 +418,15 @@ static void machine_hw_spi_init_internal(
             spi_bus_free(self->host);
             return;
     }
-#else
-    if(bits != 8)
+    #else
+    if (bits != 8) {
         mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("Only 8 bits are supported"));
+    }
 
     spi_deselect();
     spi_set_clk_freq(self->baudrate);
-    //printf("in machine_hw_spi_init_internal(), baudrate=%ld\n", self->baudrate);
-#endif
+    // printf("in machine_hw_spi_init_internal(), baudrate=%ld\n", self->baudrate);
+    #endif
     self->state = MACHINE_HW_SPI_STATE_INIT;
 }
 
@@ -458,7 +466,7 @@ static void machine_hw_spi_transfer(mp_obj_base_t *self_in, size_t len, const ui
         mp_raise_ValueError(MP_ERROR_TEXT("buffer too short"));
     }
 
-#ifdef ESP32
+    #ifdef ESP32
     if (len <= 4) {
         spi_transaction_t transaction = { 0 };
 
@@ -514,20 +522,21 @@ static void machine_hw_spi_transfer(mp_obj_base_t *self_in, size_t len, const ui
         spi_device_get_trans_result(self->spi, &result, portMAX_DELAY);
         spi_device_release_bus(self->spi);
     }
-#else
-#ifdef _DEBUG
+    #else
+    #ifdef _DEBUG
     printf("in machine_hw_spi_transfer(), src=%p, dest=%p, len=%d\n", src, dest, len);
-#endif
+    #endif
     spi_select();
-    if(dest != NULL && src != NULL)
-      spi_readwrite_bytes(dest, src, len);
-    else if(src != NULL)
-      spi_write_bytes(src, len);
-    else if(dest != NULL)
-      spi_read_bytes(dest, len);
+    if (dest != NULL && src != NULL) {
+        spi_readwrite_bytes(dest, src, len);
+    } else if (src != NULL) {
+        spi_write_bytes(src, len);
+    } else if (dest != NULL) {
+        spi_read_bytes(dest, len);
+    }
 
     spi_deselect();
-#endif
+    #endif
 }
 
 /******************************************************************************/
@@ -611,7 +620,7 @@ mp_obj_t machine_hw_spi_make_new(const mp_obj_type_t *type, size_t n_args, size_
 
     machine_hw_spi_obj_t *self;
     const machine_hw_spi_default_pins_t *default_pins;
-#ifdef ESP32
+    #ifdef ESP32
     if (args[ARG_id].u_int == HSPI_HOST) {
         self = &machine_hw_spi_obj[0];
         default_pins = &machine_hw_spi_default_pins[0];
@@ -619,17 +628,16 @@ mp_obj_t machine_hw_spi_make_new(const mp_obj_type_t *type, size_t n_args, size_
         self = &machine_hw_spi_obj[1];
         default_pins = &machine_hw_spi_default_pins[1];
     }
-#else
+    #else
     spi_host_device_t idspi = args[ARG_id].u_int;
-    //printf("in machine_hw_spi_make_new(), id=%d\n", idspi);
-    if(idspi < SPI_COUNT)
-    {
+    // printf("in machine_hw_spi_make_new(), id=%d\n", idspi);
+    if (idspi < SPI_COUNT) {
         self = &machine_hw_spi_obj[idspi];
         default_pins = &machine_hw_spi_default_pins[idspi];
-    }
-    else
+    } else {
         mp_raise_ValueError(MP_ERROR_TEXT("Invalid SPI id"));
-#endif
+    }
+    #endif
     self->base.type = &machine_hw_spi_type;
 
     int8_t sck, mosi, miso;
@@ -689,5 +697,4 @@ MP_DEFINE_CONST_OBJ_TYPE(
     locals_dict, &mp_machine_spi_locals_dict
     );
 
-#endif //USE_HARDWARE_SPI
-
+#endif // USE_HARDWARE_SPI

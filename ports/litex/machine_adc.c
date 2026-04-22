@@ -123,7 +123,7 @@ static const mp_arg_t machine_adc_init_args[] = {
 };
 
 static mp_obj_t machine_adc_make_new(const mp_obj_type_t *type, size_t n_args,
-                                     size_t n_kw, const mp_obj_t *all_args) {
+    size_t n_kw, const mp_obj_t *all_args) {
     mp_arg_val_t args[MP_ARRAY_SIZE(machine_adc_init_args)];
     mp_arg_parse_all_kw_array(n_args, n_kw, all_args,
         MP_ARRAY_SIZE(machine_adc_init_args), machine_adc_init_args, args);

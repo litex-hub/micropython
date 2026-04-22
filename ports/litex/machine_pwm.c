@@ -37,7 +37,7 @@
 #include "modmachine.h"
 #include "mphalport.h"
 
-#ifdef CSR_LEDS_PWM_ENABLE_ADDR //TODO: change led control to general PWM array when implemented
+#ifdef CSR_LEDS_PWM_ENABLE_ADDR // TODO: change led control to general PWM array when implemented
 // Forward dec'l
 extern const mp_obj_type_t machine_pwm_type;
 
@@ -49,7 +49,7 @@ typedef struct _pwm_obj_t {
 } pwm_obj_t;
 #endif
 
-#ifdef ESP32 //see notes in machine_hw_spi.c about reusing code from ESP32 port
+#ifdef ESP32 // see notes in machine_hw_spi.c about reusing code from ESP32 port
 // Which channel has which GPIO pin assigned?
 // (-1 if not assigned)
 #define PWM_CHANNEL_MAX LEDC_CHANNEL_MAX
@@ -77,19 +77,19 @@ static ledc_timer_config_t timer_cfg = {
 };
 #else
 
-//TODO: these macros could be more general
-#define LITEX_FREQ_TO_CYCLES(f) (CONFIG_CLOCK_FREQUENCY/(f))
-#define LITEX_CYCLES_TO_FREQ(c) (CONFIG_CLOCK_FREQUENCY/(c))
-#define LITEX_NS_TO_CYCLES(n) (((n)*(CONFIG_CLOCK_FREQUENCY/1000)*65536/1000000)/65536) //for large values use 64-bit
-#define LITEX_NS_TO_CYCLES_64BIT(n) ((uint64_t)(n)*CONFIG_CLOCK_FREQUENCY/1000000000) //LITEX_NS_TO_CYCLES((uint64_t)n)
-#define LITEX_CYCLES_TO_NS(c) ((1000000000/(CONFIG_CLOCK_FREQUENCY/65536))*(c)/65536) //for large values use 64-bit
-#define LITEX_CYCLES_TO_NS_64BIT(c) (1000000000*(uint64_t)(c)/CONFIG_CLOCK_FREQUENCY) //LITEX_CYCLES_TO_NS((uint64_t)c)
-#define DUTY16_TO_CYCLES(d, period) (period*(uint64_t)(d)/65536)
-#define CYCLES_TO_DUTY16(w, period) (uint16_t)(65536*(uint64_t)(w)/period)
+// TODO: these macros could be more general
+#define LITEX_FREQ_TO_CYCLES(f) (CONFIG_CLOCK_FREQUENCY / (f))
+#define LITEX_CYCLES_TO_FREQ(c) (CONFIG_CLOCK_FREQUENCY / (c))
+#define LITEX_NS_TO_CYCLES(n) (((n) * (CONFIG_CLOCK_FREQUENCY / 1000) * 65536 / 1000000) / 65536) // for large values use 64-bit
+#define LITEX_NS_TO_CYCLES_64BIT(n) ((uint64_t)(n) * CONFIG_CLOCK_FREQUENCY / 1000000000) // LITEX_NS_TO_CYCLES((uint64_t)n)
+#define LITEX_CYCLES_TO_NS(c) ((1000000000 / (CONFIG_CLOCK_FREQUENCY / 65536)) * (c) / 65536) // for large values use 64-bit
+#define LITEX_CYCLES_TO_NS_64BIT(c) (1000000000 * (uint64_t)(c) / CONFIG_CLOCK_FREQUENCY) // LITEX_CYCLES_TO_NS((uint64_t)c)
+#define DUTY16_TO_CYCLES(d, period) (period * (uint64_t)(d) / 65536)
+#define CYCLES_TO_DUTY16(w, period) (uint16_t)(65536 * (uint64_t)(w) / period)
 
 #ifdef CSR_LEDS_PWM_ENABLE_ADDR
 #define LEDS_VIRTUAL_PIN (-1)
-//todo: support pwm pins
+// todo: support pwm pins
 #define PWM_CHANNEL_MAX 1
 #define pwm_internal_enable()            litex_pwm_enable()
 #define pwm_internal_disable()           litex_pwm_disable()
@@ -97,31 +97,43 @@ static ledc_timer_config_t timer_cfg = {
 #define pwm_internal_get_period(pin)     litex_pwm_get_period(pin)
 #define pwm_internal_set_width(pin, v)   litex_pwm_set_width(pin, v)
 #define pwm_internal_get_width(pin)      litex_pwm_get_width(pin)
-#define pwm_internal_init_pin(pin) //TODO: implement
-#define pwm_internal_deinit_pin(pin) //TODO: implement
+#define pwm_internal_init_pin(pin) // TODO: implement
+#define pwm_internal_deinit_pin(pin) // TODO: implement
 
-//C API
-static inline void litex_pwm_enable(void) { leds_pwm_enable_write(1); }
-static inline void litex_pwm_disable(void) { leds_pwm_enable_write(0); }
-static inline void litex_pwm_set_period(int pin, uint32_t v) { leds_pwm_period_write(v); }
-static inline uint32_t litex_pwm_get_period(int pin) { return leds_pwm_period_read(); }
-static inline void litex_pwm_set_width(int pin, uint32_t v) { leds_pwm_width_write(v); }
-static inline uint32_t litex_pwm_get_width(int pin) { return leds_pwm_width_read(); }
+// C API
+static inline void litex_pwm_enable(void) {
+    leds_pwm_enable_write(1);
+}
+static inline void litex_pwm_disable(void) {
+    leds_pwm_enable_write(0);
+}
+static inline void litex_pwm_set_period(int pin, uint32_t v) {
+    leds_pwm_period_write(v);
+}
+static inline uint32_t litex_pwm_get_period(int pin) {
+    return leds_pwm_period_read();
+}
+static inline void litex_pwm_set_width(int pin, uint32_t v) {
+    leds_pwm_width_write(v);
+}
+static inline uint32_t litex_pwm_get_width(int pin) {
+    return leds_pwm_width_read();
+}
 
 
-#endif //CSR_LEDS_PWM_ENABLE_ADDR
+#endif // CSR_LEDS_PWM_ENABLE_ADDR
 
 #endif
 
-#ifdef PWM_CHANNEL_MAX //only enable if used
+#ifdef PWM_CHANNEL_MAX // only enable if used
 
 static bool pwm_inited = false;
 static int chan_gpio[PWM_CHANNEL_MAX];
 
 static void pwm_init_internal(void) {
-#ifdef _DEBUG
+    #ifdef _DEBUG
     printf("in pwm_init_internal: PWM disable\n");
-#endif
+    #endif
 
     // Initial condition: no channels assigned
     for (int x = 0; x < PWM_CHANNEL_MAX; ++x) {
@@ -129,18 +141,18 @@ static void pwm_init_internal(void) {
     }
 
     // Init with default timer params
-#ifdef ESP32
+    #ifdef ESP32
     ledc_timer_config(&timer_cfg);
-#else
-    pwm_internal_disable(); //PWM starts disabled
-#endif
+    #else
+    pwm_internal_disable(); // PWM starts disabled
+    #endif
 }
 
 static int set_freq(int pin, int newval) {
     if (newval <= 0) {
         newval = 1;
     }
-#ifdef ESP32
+    #ifdef ESP32
     // Find the highest bit resolution for the requested frequency
     int ores = timer_cfg.duty_resolution;
     int oval = timer_cfg.freq_hz;
@@ -162,9 +174,9 @@ static int set_freq(int pin, int newval) {
         timer_cfg.freq_hz = oval;
         return 0;
     }
-#else
+    #else
     pwm_internal_set_period(pin, LITEX_FREQ_TO_CYCLES(newval));
-#endif
+    #endif
     return 1;
 }
 
@@ -175,12 +187,12 @@ static void pwm_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t
     pwm_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_printf(print, "PWM(%u", self->pin);
     if (self->active) {
-#ifdef ESP32
+        #ifdef ESP32
         mp_printf(print, ", freq=%u, duty=%u", timer_cfg.freq_hz,
             ledc_get_duty(PWMODE, self->channel));
-#else
+        #else
         mp_printf(print, ", period=%u cycles, duty=%u cycles", pwm_internal_get_period(self->pin), pwm_internal_get_width(self->pin));
-#endif
+        #endif
     }
     mp_printf(print, ")");
 }
@@ -223,7 +235,7 @@ static void pwm_init_helper(pwm_obj_t *self,
     int tval = args[ARG_freq].u_int;
     int dval = args[ARG_duty].u_int;
     if (chan_gpio[channel] == -1) {
-#ifdef ESP32
+        #ifdef ESP32
         ledc_channel_config_t cfg = {
             .channel = channel,
             .duty = (1 << timer_cfg.duty_resolution) / 2,
@@ -235,21 +247,21 @@ static void pwm_init_helper(pwm_obj_t *self,
         if (ledc_channel_config(&cfg) != ESP_OK) {
             mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("PWM not supported on pin %d"), self->pin);
         }
-#else
+        #else
         pwm_internal_init_pin(self->pin);
-#endif
+        #endif
         chan_gpio[channel] = self->pin;
     }
 
-#ifdef _DEBUG
+    #ifdef _DEBUG
     printf("in pwm_init_helper, channel=%d, pin=%d, tval=%d, dval=%d\n", self->channel, self->pin, tval, dval);
-#endif
+    #endif
 
     // Maybe change PWM timer
     if (tval != -1) {
-#ifdef ESP32
+        #ifdef ESP32
         if (tval != timer_cfg.freq_hz)
-#endif
+        #endif
         {
             if (!set_freq(self->pin, tval)) {
                 mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("bad frequency %d"), tval);
@@ -259,20 +271,20 @@ static void pwm_init_helper(pwm_obj_t *self,
 
     // Set duty cycle?
     if (dval != -1) {
-#ifdef ESP32
+        #ifdef ESP32
         dval &= ((1 << PWRES) - 1);
         dval >>= PWRES - timer_cfg.duty_resolution;
         ledc_set_duty(PWMODE, channel, dval);
         ledc_update_duty(PWMODE, channel);
-#else
+        #else
         pwm_internal_set_width(self->pin, LITEX_NS_TO_CYCLES_64BIT(dval));
-#endif
+        #endif
     }
 
-#ifdef _DEBUG
+    #ifdef _DEBUG
     printf("PWM enable\n");
-#endif
-    pwm_internal_enable(); //always enable PWM even if frequency or duty cycle not set (will use hardware defaults)
+    #endif
+    pwm_internal_enable(); // always enable PWM even if frequency or duty cycle not set (will use hardware defaults)
 }
 
 
@@ -281,9 +293,9 @@ static mp_obj_t pwm_make_new(const mp_obj_type_t *type,
     mp_arg_check_num(n_args, n_kw, 1, MP_OBJ_FUN_ARGS_MAX, true);
     mp_hal_pin_obj_t pin_id = machine_pin_get_id(args[0]);
 
-#ifdef _DEBUG
+    #ifdef _DEBUG
     printf("in pwm_make_new, pin=%d\n", pin_id);
-#endif
+    #endif
 
     // create PWM object from the given pin
     pwm_obj_t *self = m_new_obj(pwm_obj_t);
@@ -321,25 +333,27 @@ static mp_obj_t pwm_deinit(mp_obj_t self_in) {
     if ((chan >= 0) && (chan < PWM_CHANNEL_MAX)) {
         // Mark it unused, and tell the hardware to stop routing
         chan_gpio[chan] = -1;
-#ifdef _DEBUG
+        #ifdef _DEBUG
         printf("in pwm_deinit, chan=%d\n", chan);
-#endif
+        #endif
 
-#ifdef ESP32
+        #ifdef ESP32
         ledc_stop(PWMODE, chan, 0);
         gpio_matrix_out(self->pin, SIG_GPIO_OUT_IDX, false, false);
-#else
+        #else
         pwm_internal_deinit_pin(self->pin);
-#endif
+        #endif
         int count = 0;
-        for(int i = 0; i < PWM_CHANNEL_MAX; ++i)
-            if(chan_gpio[i] != -1) ++count;
+        for (int i = 0; i < PWM_CHANNEL_MAX; ++i) {
+            if (chan_gpio[i] != -1) {
+                ++count;
+            }
+        }
 
-        if(count == 0)
-        {
-#ifdef _DEBUG
+        if (count == 0) {
+            #ifdef _DEBUG
             printf("no PWM channels used, disable all\n");
-#endif
+            #endif
 
             pwm_internal_disable();
         }
@@ -354,13 +368,13 @@ static mp_obj_t pwm_freq(size_t n_args, const mp_obj_t *args) {
     pwm_obj_t *self = MP_OBJ_TO_PTR(args[0]);
     if (n_args == 1) {
         // get
-#ifdef ESP32
+        #ifdef ESP32
         int freq_hz = timer_cfg.freq_hz;
         return MP_OBJ_NEW_SMALL_INT(freq_hz);
-#else
+        #else
         uint32_t period = pwm_internal_get_period(self->pin);
         return MP_OBJ_NEW_SMALL_INT(LITEX_CYCLES_TO_FREQ(period));
-#endif
+        #endif
     }
 
     // set
@@ -379,27 +393,27 @@ static mp_obj_t pwm_duty_u16(size_t n_args, const mp_obj_t *args) {
 
     if (n_args == 1) {
         // get
-#ifdef ESP32
+        #ifdef ESP32
         duty = ledc_get_duty(PWMODE, self->channel);
         duty <<= PWRES - timer_cfg.duty_resolution;
-#else
+        #else
         duty = pwm_internal_get_width(self->pin);
         uint32_t period = pwm_internal_get_period(self->pin);
-#endif
+        #endif
         return MP_OBJ_NEW_SMALL_INT(CYCLES_TO_DUTY16(duty, period));
     }
 
     // set
     duty = mp_obj_get_int(args[1]);
-#ifdef ESP32
+    #ifdef ESP32
     duty &= ((1 << PWRES) - 1);
     duty >>= PWRES - timer_cfg.duty_resolution;
     ledc_set_duty(PWMODE, self->channel, duty);
     ledc_update_duty(PWMODE, self->channel);
-#else
+    #else
     uint32_t period = pwm_internal_get_period(self->pin);
     pwm_internal_set_width(self->pin, DUTY16_TO_CYCLES(duty, period));
-#endif
+    #endif
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(pwm_duty_u16_obj,
@@ -411,25 +425,25 @@ static mp_obj_t pwm_duty_ns(size_t n_args, const mp_obj_t *args) {
 
     if (n_args == 1) {
         // get
-#ifdef ESP32
+        #ifdef ESP32
         duty = ledc_get_duty(PWMODE, self->channel);
         duty <<= PWRES - timer_cfg.duty_resolution;
-#else
+        #else
         duty = pwm_internal_get_width(self->pin);
-#endif
+        #endif
         return MP_OBJ_NEW_SMALL_INT(LITEX_CYCLES_TO_NS_64BIT(duty));
     }
 
     // set
     duty = mp_obj_get_int(args[1]);
-#ifdef ESP32
+    #ifdef ESP32
     duty &= ((1 << PWRES) - 1);
     duty >>= PWRES - timer_cfg.duty_resolution;
     ledc_set_duty(PWMODE, self->channel, duty);
     ledc_update_duty(PWMODE, self->channel);
-#else
+    #else
     pwm_internal_set_width(self->pin, LITEX_NS_TO_CYCLES_64BIT(duty));
-#endif
+    #endif
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(pwm_duty_ns_obj,

@@ -60,39 +60,51 @@
 #else
 
 typedef enum {
- GPIO_MODE_INPUT = 0,
- GPIO_MODE_INPUT_OUTPUT = 1,
- GPIO_MODE_INPUT_OUTPUT_OD = 2,
-} GPIO_MODE; //should match CSR constants
+    GPIO_MODE_INPUT = 0,
+    GPIO_MODE_INPUT_OUTPUT = 1,
+    GPIO_MODE_INPUT_OUTPUT_OD = 2,
+} GPIO_MODE; // should match CSR constants
 
 typedef mp_hal_pin_obj_t t, gpio_num_t;
 
-static inline void gpio_set_direction(t id, GPIO_MODE mode)
-{
-  switch(mode)
-  {
-    case GPIO_MODE_INPUT: 
-        mp_hal_pin_input(id);
-        break;
-    case GPIO_MODE_INPUT_OUTPUT_OD: 
-        mp_hal_pin_open_drain(id);
-        break;
-    case GPIO_MODE_INPUT_OUTPUT: 
-        mp_hal_pin_output(id);
-        break;
-    default:
-        mp_raise_ValueError(MP_ERROR_TEXT("mode should be Pin.IN, Pin.OUT or Pin.OPEN_DRAIN"));
-  }
+static inline void gpio_set_direction(t id, GPIO_MODE mode) {
+    switch (mode)
+    {
+        case GPIO_MODE_INPUT:
+            mp_hal_pin_input(id);
+            break;
+        case GPIO_MODE_INPUT_OUTPUT_OD:
+            mp_hal_pin_open_drain(id);
+            break;
+        case GPIO_MODE_INPUT_OUTPUT:
+            mp_hal_pin_output(id);
+            break;
+        default:
+            mp_raise_ValueError(MP_ERROR_TEXT("mode should be Pin.IN, Pin.OUT or Pin.OPEN_DRAIN"));
+    }
 }
 
-static inline bool gpio_get_level(t id) { return mp_hal_pin_read(id); }
-static inline void gpio_set_level(t id, bool value) { mp_hal_pin_write(id, value); }
-static inline void gpio_pulldown_en(t id) { mp_raise_ValueError(MP_ERROR_TEXT("Pulldown not supported")); }
-static inline void gpio_pulldown_dis(t id) { }
-static inline void gpio_pullup_en(t id) { mp_raise_ValueError(MP_ERROR_TEXT("Pullup not supported")); }
-static inline void gpio_pullup_dis(t id) { }
-static inline void gpio_hold_en(t id) { mp_raise_ValueError(MP_ERROR_TEXT("Hold not supported")); }
-static inline void gpio_hold_dis(t id) {}
+static inline bool gpio_get_level(t id) {
+    return mp_hal_pin_read(id);
+}
+static inline void gpio_set_level(t id, bool value) {
+    mp_hal_pin_write(id, value);
+}
+static inline void gpio_pulldown_en(t id) {
+    mp_raise_ValueError(MP_ERROR_TEXT("Pulldown not supported"));
+}
+static inline void gpio_pulldown_dis(t id) {
+}
+static inline void gpio_pullup_en(t id) {
+    mp_raise_ValueError(MP_ERROR_TEXT("Pullup not supported"));
+}
+static inline void gpio_pullup_dis(t id) {
+}
+static inline void gpio_hold_en(t id) {
+    mp_raise_ValueError(MP_ERROR_TEXT("Hold not supported"));
+}
+static inline void gpio_hold_dis(t id) {
+}
 #define GPIO_IS_VALID_OUTPUT_GPIO(t) true
 
 #endif
@@ -134,7 +146,7 @@ static const machine_pin_obj_t machine_pin_obj[] = {
     {{&machine_pin_type}, 28},
     {{&machine_pin_type}, 29},
     {{&machine_pin_type}, 30},
-    {{&machine_pin_type}, 31}, //FIXME: should support the amount defined in CSRs
+    {{&machine_pin_type}, 31}, // FIXME: should support the amount defined in CSRs
 };
 
 #ifdef ESP32
@@ -156,10 +168,10 @@ void machine_pins_init(void) {
 
 void machine_pins_deinit(void) {
     for (int i = 0; i < MP_ARRAY_SIZE(machine_pin_obj); ++i) {
-        if (machine_pin_obj[i].id != (t)-1) {
-#ifdef ESP32
+        if (machine_pin_obj[i].id != (t) - 1) {
+            #ifdef ESP32
             gpio_isr_handler_remove(machine_pin_obj[i].id);
-#endif
+            #endif
         }
     }
 }
@@ -174,7 +186,7 @@ t machine_pin_get_id(const mp_obj_t pin_in) {
     if (mp_obj_get_type(pin_in) != &machine_pin_type) {
         mp_raise_ValueError(MP_ERROR_TEXT("expecting a pin"));
     }
-    machine_pin_obj_t *self = (machine_pin_obj_t *) pin_in;
+    machine_pin_obj_t *self = (machine_pin_obj_t *)pin_in;
     return self->id;
 }
 
@@ -195,7 +207,7 @@ static mp_obj_t machine_pin_obj_init_helper(const machine_pin_obj_t *self, size_
     // parse args
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
-#ifdef ESP32
+    #ifdef ESP32
     // reset the pin to digital if this is a mode-setting init (grab it back from ADC)
     if (args[ARG_mode].u_obj != mp_const_none) {
         if (rtc_gpio_is_valid_gpio(self->id)) {
@@ -205,7 +217,7 @@ static mp_obj_t machine_pin_obj_init_helper(const machine_pin_obj_t *self, size_
 
     // configure the pin for gpio
     gpio_pad_select_gpio(self->id);
-#endif
+    #endif
     // set initial value (do this before configuring mode/pull)
     if (args[ARG_value].u_obj != MP_OBJ_NULL) {
         gpio_set_level(self->id, mp_obj_is_true(args[ARG_value].u_obj));
@@ -214,11 +226,11 @@ static mp_obj_t machine_pin_obj_init_helper(const machine_pin_obj_t *self, size_
     // configure mode
     if (args[ARG_mode].u_obj != mp_const_none) {
         mp_int_t pin_io_mode = mp_obj_get_int(args[ARG_mode].u_obj);
-#ifdef ESP32
+        #ifdef ESP32
         if (self->id >= GPIO_PIN_COUNT && (pin_io_mode & GPIO_MODE_DEF_OUTPUT)) {
-#else
+        #else
         if (!GPIO_IS_VALID_OUTPUT_GPIO(self->id) && (pin_io_mode != GPIO_MODE_INPUT)) {
-#endif
+            #endif
             mp_raise_ValueError(MP_ERROR_TEXT("pin can only be input"));
         } else {
             gpio_set_direction(self->id, pin_io_mode);
@@ -323,34 +335,34 @@ static const mp_rom_map_elem_t machine_pin_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_value), MP_ROM_PTR(&machine_pin_value_obj) },
     { MP_ROM_QSTR(MP_QSTR_off), MP_ROM_PTR(&machine_pin_off_obj) },
     { MP_ROM_QSTR(MP_QSTR_on), MP_ROM_PTR(&machine_pin_on_obj) },
-#ifdef ESP32
+    #ifdef ESP32
     { MP_ROM_QSTR(MP_QSTR_irq), MP_ROM_PTR(&machine_pin_irq_obj) },
-#endif
+    #endif
     // class constants
     { MP_ROM_QSTR(MP_QSTR_IN), MP_ROM_INT(GPIO_MODE_INPUT) },
     { MP_ROM_QSTR(MP_QSTR_OUT), MP_ROM_INT(GPIO_MODE_INPUT_OUTPUT) },
     { MP_ROM_QSTR(MP_QSTR_OPEN_DRAIN), MP_ROM_INT(GPIO_MODE_INPUT_OUTPUT_OD) },
-#ifdef GPIO_PULL_UP
+    #ifdef GPIO_PULL_UP
     { MP_ROM_QSTR(MP_QSTR_PULL_UP), MP_ROM_INT(GPIO_PULL_UP) },
-#endif
-#ifdef GPIO_PULL_DOWN
+    #endif
+    #ifdef GPIO_PULL_DOWN
     { MP_ROM_QSTR(MP_QSTR_PULL_DOWN), MP_ROM_INT(GPIO_PULL_DOWN) },
-#endif
-#ifdef GPIO_PULL_HOLD
+    #endif
+    #ifdef GPIO_PULL_HOLD
     { MP_ROM_QSTR(MP_QSTR_PULL_HOLD), MP_ROM_INT(GPIO_PULL_HOLD) },
-#endif
-#ifdef GPIO_PIN_INTR_POSEDGE
+    #endif
+    #ifdef GPIO_PIN_INTR_POSEDGE
     { MP_ROM_QSTR(MP_QSTR_IRQ_RISING), MP_ROM_INT(GPIO_PIN_INTR_POSEDGE) },
-#endif
-#ifdef GPIO_PIN_INTR_NEGEDGE
+    #endif
+    #ifdef GPIO_PIN_INTR_NEGEDGE
     { MP_ROM_QSTR(MP_QSTR_IRQ_FALLING), MP_ROM_INT(GPIO_PIN_INTR_NEGEDGE) },
-#endif
-#ifdef GPIO_PIN_INTR_LOLEVEL
+    #endif
+    #ifdef GPIO_PIN_INTR_LOLEVEL
     { MP_ROM_QSTR(MP_QSTR_WAKE_LOW), MP_ROM_INT(GPIO_PIN_INTR_LOLEVEL) },
-#endif
-#ifdef GPIO_PIN_INTR_HILEVEL
+    #endif
+    #ifdef GPIO_PIN_INTR_HILEVEL
     { MP_ROM_QSTR(MP_QSTR_WAKE_HIGH), MP_ROM_INT(GPIO_PIN_INTR_HILEVEL) },
-#endif
+    #endif
 };
 
 static mp_uint_t pin_ioctl(mp_obj_t self_in, mp_uint_t request, uintptr_t arg, int *errcode) {

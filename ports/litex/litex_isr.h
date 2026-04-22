@@ -19,7 +19,7 @@
 //
 // Passing a None handler removes any existing registration.
 void litex_isr_register(int irq_bit, uint32_t ev_pending_addr,
-                        mp_obj_t handler, mp_obj_t owner);
+    mp_obj_t handler, mp_obj_t owner);
 
 // Walk the registration table for the given pending mask and schedule
 // matching Python handlers. Called from isr() after the existing C-level

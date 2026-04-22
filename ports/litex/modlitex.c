@@ -148,7 +148,7 @@ static litex_isr_entry_t litex_isr_table[LITEX_MAX_IRQ_HANDLERS] = {
 };
 
 void litex_isr_register(int irq_bit, uint32_t ev_pending_addr,
-                        mp_obj_t handler, mp_obj_t owner) {
+    mp_obj_t handler, mp_obj_t owner) {
     // Replace any existing entry for this irq_bit, then look for a free
     // slot. Storage is small enough (8 slots) that linear scan is fine.
     int slot = -1;
@@ -265,7 +265,7 @@ static uint32_t litex_lookup_csr_addr(const char *prefix, const char *suffix) {
 }
 
 static mp_obj_t litex_event_manager_make_new(const mp_obj_type_t *type,
-        size_t n_args, size_t n_kw, const mp_obj_t *args) {
+    size_t n_args, size_t n_kw, const mp_obj_t *args) {
     mp_arg_check_num(n_args, n_kw, 1, 1, false);
     const char *prefix = mp_obj_str_get_str(args[0]);
     uint32_t pending = litex_lookup_csr_addr(prefix, "pending");
@@ -284,7 +284,7 @@ static mp_obj_t litex_event_manager_make_new(const mp_obj_type_t *type,
 }
 
 static void litex_event_manager_print(const mp_print_t *print, mp_obj_t self_in,
-                                      mp_print_kind_t kind) {
+    mp_print_kind_t kind) {
     (void)kind;
     litex_event_manager_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_printf(print, "EventManager('%s', pending=0x%08x, enable=0x%08x)",
@@ -297,7 +297,7 @@ static mp_obj_t litex_event_manager_pending(mp_obj_t self_in) {
     return mp_obj_new_int_from_uint(MMPTR(self->pending_addr));
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(litex_event_manager_pending_obj,
-                                 litex_event_manager_pending);
+    litex_event_manager_pending);
 
 static mp_obj_t litex_event_manager_status(mp_obj_t self_in) {
     litex_event_manager_obj_t *self = MP_OBJ_TO_PTR(self_in);
@@ -307,7 +307,7 @@ static mp_obj_t litex_event_manager_status(mp_obj_t self_in) {
     return mp_obj_new_int_from_uint(MMPTR(self->status_addr));
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(litex_event_manager_status_obj,
-                                 litex_event_manager_status);
+    litex_event_manager_status);
 
 // Write-1-to-clear: writing 1 bits to ev_pending acknowledges those events.
 static mp_obj_t litex_event_manager_clear(mp_obj_t self_in, mp_obj_t mask_obj) {
@@ -316,7 +316,7 @@ static mp_obj_t litex_event_manager_clear(mp_obj_t self_in, mp_obj_t mask_obj) {
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(litex_event_manager_clear_obj,
-                                 litex_event_manager_clear);
+    litex_event_manager_clear);
 
 static mp_obj_t litex_event_manager_enable(mp_obj_t self_in, mp_obj_t mask_obj) {
     litex_event_manager_obj_t *self = MP_OBJ_TO_PTR(self_in);
@@ -325,7 +325,7 @@ static mp_obj_t litex_event_manager_enable(mp_obj_t self_in, mp_obj_t mask_obj) 
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(litex_event_manager_enable_obj,
-                                 litex_event_manager_enable);
+    litex_event_manager_enable);
 
 static mp_obj_t litex_event_manager_disable(mp_obj_t self_in, mp_obj_t mask_obj) {
     litex_event_manager_obj_t *self = MP_OBJ_TO_PTR(self_in);
@@ -334,7 +334,7 @@ static mp_obj_t litex_event_manager_disable(mp_obj_t self_in, mp_obj_t mask_obj)
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(litex_event_manager_disable_obj,
-                                 litex_event_manager_disable);
+    litex_event_manager_disable);
 
 // EventManager.irq(handler) — register a Python callback for this
 // peripheral's IRQ. The callback is scheduled (mp_sched_schedule) when
@@ -354,7 +354,7 @@ static mp_obj_t litex_event_manager_irq(mp_obj_t self_in, mp_obj_t handler) {
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(litex_event_manager_irq_obj,
-                                 litex_event_manager_irq);
+    litex_event_manager_irq);
 
 static const mp_rom_map_elem_t litex_event_manager_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_pending), MP_ROM_PTR(&litex_event_manager_pending_obj) },
@@ -365,7 +365,7 @@ static const mp_rom_map_elem_t litex_event_manager_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_irq),     MP_ROM_PTR(&litex_event_manager_irq_obj) },
 };
 static MP_DEFINE_CONST_DICT(litex_event_manager_locals_dict,
-                            litex_event_manager_locals_dict_table);
+    litex_event_manager_locals_dict_table);
 
 MP_DEFINE_CONST_OBJ_TYPE(
     litex_event_manager_type,

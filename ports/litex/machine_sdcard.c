@@ -64,11 +64,11 @@ const mp_obj_type_t machine_sdcard_type;
 #define _SECTOR_SIZE(self) (self->card.csd.sector_size)
 typedef esp_err_t err_t;
 
-#else //LITEX
+#else // LITEX
 
 #ifdef CSR_SPISDCARD_BASE
 #include "../liblitesdcard/spisdcard.h"
-#else //CSR_SDCARD_BASE
+#else // CSR_SDCARD_BASE
 #include "../liblitesdcard/sdcard.h"
 #endif
 
@@ -81,84 +81,80 @@ typedef esp_err_t err_t;
 #endif
 
 typedef enum { ERR_NOERROR = 0, ERR_ERROR = 1 } err_t;
-//TODO: implement _SECTOR_SIZE as reported by the SD card (rarely different than 512 anyways)
+// TODO: implement _SECTOR_SIZE as reported by the SD card (rarely different than 512 anyways)
 #define _SECTOR_SIZE(self) 512
 typedef int sdmmc_card_t;
 
-err_t sdmmc_read_sectors(sdmmc_card_t *card, uint8_t *buf, uint32_t sector, size_t count)
-{
+err_t sdmmc_read_sectors(sdmmc_card_t *card, uint8_t *buf, uint32_t sector, size_t count) {
     DEBUG_printf("sdmmc_read_sectors: card=%d, buf=%p, sector=%lu, count=%u", *card, buf, sector, count);
-#ifdef CSR_SPISDCARD_BASE
+    #ifdef CSR_SPISDCARD_BASE
     size_t rdcount = spisdcard_read(buf, sector, count);
     DEBUG_printf("sectors actually read: %u (0x%02X 0x%02X .. 0x%02X 0x%02X)", rdcount, buf[0], buf[1], buf[510], buf[511]);
     return rdcount == count ? ERR_NOERROR : ERR_ERROR;
-#else //CSR_SDCARD_BASE
+    #else // CSR_SDCARD_BASE
 
     #warning sdcard_read should return an error code
     sdcard_read(sector, count, buf);
     return ERR_NOERROR;
-#endif
+    #endif
 }
 
-err_t sdmmc_write_sectors(sdmmc_card_t *card, const uint8_t *buf, uint32_t sector, size_t count)
-{
+err_t sdmmc_write_sectors(sdmmc_card_t *card, const uint8_t *buf, uint32_t sector, size_t count) {
     DEBUG_printf("sdmmc_write_sectors: card=%d, buf=%p, sector=%lu, count=%u\n", *card, buf, sector, count);
 
-#ifdef CSR_SPISDCARD_BASE
+    #ifdef CSR_SPISDCARD_BASE
     size_t wrcount = spisdcard_write(buf, sector, count);
     DEBUG_printf("sectors actually written: %u (0x%02X 0x%02X .. 0x%02X 0x%02X)", wrcount, buf[0], buf[1], buf[510], buf[511]);
 
     return wrcount == count ? ERR_NOERROR : ERR_ERROR;
-#else //CSR_SDCARD_BASE
+    #else // CSR_SDCARD_BASE
     #warning sdcard_write should return an error code
-    sdcard_write(sector, count, (uint8_t *) buf);
-    return ERR_NOERROR; //FIXME: check errors
-#endif
+    sdcard_write(sector, count, (uint8_t *)buf);
+    return ERR_NOERROR; // FIXME: check errors
+    #endif
 }
 
-err_t sdmmc_card_init(sdmmc_card_t *card)
-{
+err_t sdmmc_card_init(sdmmc_card_t *card) {
     DEBUG_printf("sdmmc_card_init called: card=%p(%d)\n", card, *card);
-#ifdef CSR_SPISDCARD_BASE
+    #ifdef CSR_SPISDCARD_BASE
     err_t res = spisdcard_init() != 0 ? ERR_NOERROR : ERR_ERROR;
     spisdcard_deselect();
     return res;
-#else //CSR_SDCARD_BASE
+    #else // CSR_SDCARD_BASE
     return sdcard_init() != 0 ? ERR_NOERROR : ERR_ERROR;
-#endif
+    #endif
 }
 
-err_t sdmmc_card_deinit(sdmmc_card_t *card)
-{
+err_t sdmmc_card_deinit(sdmmc_card_t *card) {
     DEBUG_printf("sdmmc_card_deinit: card=%d\n", *card);
     return ERR_NOERROR;
 }
 
-unsigned long sdmmc_card_num_blocks(void)
-{
-#ifdef CSR_SPISDCARD_BASE
+unsigned long sdmmc_card_num_blocks(void) {
+    #ifdef CSR_SPISDCARD_BASE
     return spisdcard_numblocks();
-#else //CSR_SDCARD_BASE
+    #else // CSR_SDCARD_BASE
     return sdcard_numblocks();
-#endif
+    #endif
 }
 
-static inline void check_esp_err(err_t e)
-{
-  if(e == ERR_NOERROR) return;
-  DEBUG_printf("SDCard error: %d\n", e);
-  mp_raise_OSError(e);
+static inline void check_esp_err(err_t e) {
+    if (e == ERR_NOERROR) {
+        return;
+    }
+    DEBUG_printf("SDCard error: %d\n", e);
+    mp_raise_OSError(e);
 }
 #endif
 
 typedef struct _sdcard_obj_t {
     mp_obj_base_t base;
     mp_int_t flags;
-#ifdef ESP32
+    #ifdef ESP32
     sdmmc_host_t host;
     // The card structure duplicates the host. It's not clear if we
     // can avoid this given the way that it is copied.
-#endif
+    #endif
     sdmmc_card_t card;
 } sdcard_card_obj_t;
 
@@ -183,11 +179,11 @@ static gpio_num_t pin_or_int(const mp_obj_t arg) {
 static err_t sdcard_ensure_card_init(sdcard_card_obj_t *self, bool force) {
     if (force || !(self->flags & SDCARD_CARD_FLAGS_CARD_INIT_DONE)) {
         DEBUG_printf("Calling card init\n");
-#ifdef ESP32
+        #ifdef ESP32
         err_t err = sdmmc_card_init(&(self->host), &(self->card));
-#else
+        #else
         err_t err = sdmmc_card_init(&(self->card));
-#endif
+        #endif
         if (err == ERR_NOERROR) {
             self->flags |= SDCARD_CARD_FLAGS_CARD_INIT_DONE;
         } else {
@@ -242,7 +238,7 @@ static mp_obj_t machine_sdcard_make_new(const mp_obj_type_t *type, size_t n_args
         { MP_QSTR_sck,      MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_cs,       MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = mp_const_none} },
         // freq is valid for both SPI and SDMMC interfaces
-        { MP_QSTR_freq,     MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 20000000} }, //FIXME: use SDCARD_CLK_FREQ and/or SD_SPEED_OPTION
+        { MP_QSTR_freq,     MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 20000000} }, // FIXME: use SDCARD_CLK_FREQ and/or SD_SPEED_OPTION
     };
     mp_arg_val_t arg_vals[MP_ARRAY_SIZE(allowed_args)];
     mp_map_t kw_args;
@@ -260,7 +256,7 @@ static mp_obj_t machine_sdcard_make_new(const mp_obj_type_t *type, size_t n_args
         arg_vals[ARG_miso].u_obj, arg_vals[ARG_mosi].u_obj,
         arg_vals[ARG_sck].u_obj, arg_vals[ARG_cs].u_obj);
 
-#ifdef ESP32
+    #ifdef ESP32
     int slot_num = arg_vals[ARG_slot].u_int;
     if (slot_num < 0 || slot_num > 3) {
         mp_raise_ValueError(MP_ERROR_TEXT("slot number must be between 0 and 3 inclusive"));
@@ -271,20 +267,21 @@ static mp_obj_t machine_sdcard_make_new(const mp_obj_type_t *type, size_t n_args
     if (is_spi) {
         slot_num -= 2;
     }
-#else
-//FIXME: LiteX doesn't need slot numbers
-#endif
+    #else
+// FIXME: LiteX doesn't need slot numbers
+    #endif
 
     DEBUG_printf("  Setting up host configuration");
 
     sdcard_card_obj_t *self = m_new_obj_with_finaliser(sdcard_card_obj_t);
-    if(!self)
+    if (!self) {
         return NULL;
+    }
     self->base.type = &machine_sdcard_type;
     self->flags = 0;
     self->card = -1;
 
-#ifdef ESP32
+    #ifdef ESP32
     // Note that these defaults are macros that expand to structure
     // constants so we can't directly assign them to fields.
     int freq = arg_vals[ARG_freq].u_int;
@@ -301,15 +298,15 @@ static mp_obj_t machine_sdcard_make_new(const mp_obj_type_t *type, size_t n_args
     if (is_spi) {
         self->host.slot = slot_num ? HSPI_HOST : VSPI_HOST;
     }
-#endif
+    #endif
 
-#ifdef ESP32
+    #ifdef ESP32
     DEBUG_printf("  Calling host.init()");
     check_esp_err(self->host.init());
-#endif
+    #endif
     self->flags |= SDCARD_CARD_FLAGS_HOST_INIT_DONE;
 
-#ifdef ESP32
+    #ifdef ESP32
     if (is_spi) {
         // SPI interface
         DEBUG_printf("  Setting up SPI slot configuration");
@@ -337,7 +334,7 @@ static mp_obj_t machine_sdcard_make_new(const mp_obj_type_t *type, size_t n_args
 
         DEBUG_printf("  Calling init_slot()");
         check_esp_err(sdspi_host_init_slot(self->host.slot, &slot_config));
-   } else {
+    } else {
         // SD/MMC interface
         DEBUG_printf("  Setting up SDMMC slot configuration");
         sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
@@ -359,7 +356,7 @@ static mp_obj_t machine_sdcard_make_new(const mp_obj_type_t *type, size_t n_args
         DEBUG_printf("  Calling init_slot()");
         check_esp_err(sdmmc_host_init_slot(self->host.slot, &slot_config));
     }
-#endif
+    #endif
 
     DEBUG_printf("  Returning new card object: %p", self);
     return MP_OBJ_FROM_PTR(self);
@@ -371,7 +368,7 @@ static mp_obj_t sd_deinit(mp_obj_t self_in) {
     DEBUG_printf("De-init host\n");
 
     if (self->flags & SDCARD_CARD_FLAGS_HOST_INIT_DONE) {
-#ifdef ESP32
+        #ifdef ESP32
         #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 2, 0)
         if (self->host.flags & SDMMC_HOST_FLAG_DEINIT_ARG) {
             self->host.deinit_p(self->host.slot);
@@ -380,9 +377,9 @@ static mp_obj_t sd_deinit(mp_obj_t self_in) {
         {
             self->host.deinit();
         }
-#else
+        #else
         sdmmc_card_deinit(&(self->card));
-#endif
+        #endif
         self->flags &= ~SDCARD_CARD_FLAGS_HOST_INIT_DONE;
     }
 
@@ -399,11 +396,11 @@ static mp_obj_t sd_info(mp_obj_t self_in) {
     // block size.
     check_esp_err(sdcard_ensure_card_init((sdcard_card_obj_t *)self, false));
 
-#ifdef ESP32
+    #ifdef ESP32
     uint32_t log_block_nbr = self->card.csd.capacity;
-#else
+    #else
     uint32_t log_block_nbr = sdmmc_card_num_blocks();
-#endif
+    #endif
     uint32_t log_block_size = _SECTOR_SIZE(self);
 
     mp_obj_t tuple[2] = {
@@ -416,7 +413,7 @@ static MP_DEFINE_CONST_FUN_OBJ_1(sd_info_obj, sd_info);
 
 
 static mp_obj_t machine_sdcard_readblocks(mp_obj_t self_in, mp_obj_t block_num, mp_obj_t buf) {
-    sdcard_card_obj_t *self = (sdcard_card_obj_t *) self_in;
+    sdcard_card_obj_t *self = (sdcard_card_obj_t *)self_in;
     mp_buffer_info_t bufinfo;
     err_t err;
 
@@ -450,7 +447,7 @@ static mp_obj_t machine_sdcard_writeblocks(mp_obj_t self_in, mp_obj_t block_num,
 static MP_DEFINE_CONST_FUN_OBJ_3(machine_sdcard_writeblocks_obj, machine_sdcard_writeblocks);
 
 static mp_obj_t machine_sdcard_ioctl(mp_obj_t self_in, mp_obj_t cmd_in, mp_obj_t arg_in) {
-    sdcard_card_obj_t *self = (sdcard_card_obj_t*) self_in;
+    sdcard_card_obj_t *self = (sdcard_card_obj_t *)self_in;
 
     err_t err = ERR_NOERROR;
     mp_int_t cmd = mp_obj_get_int(cmd_in);
@@ -458,38 +455,40 @@ static mp_obj_t machine_sdcard_ioctl(mp_obj_t self_in, mp_obj_t cmd_in, mp_obj_t
     DEBUG_printf("sdcard IOCTL: self=%p, cmd=%d\n", self, cmd);
 
     switch (cmd) {
-        case MP_BLOCKDEV_IOCTL_INIT: //1
+        case MP_BLOCKDEV_IOCTL_INIT: // 1
             err = sdcard_ensure_card_init(self, false);
             DEBUG_printf("\nMP_BLOCKDEV_IOCTL_INIT result: %d\n", err);
             return MP_OBJ_NEW_SMALL_INT((err == ERR_NOERROR) ? 0 : -1);
 
-        case MP_BLOCKDEV_IOCTL_DEINIT: //2
+        case MP_BLOCKDEV_IOCTL_DEINIT: // 2
             // Ensure that future attempts to look at info re-read the card
             self->flags &= ~SDCARD_CARD_FLAGS_CARD_INIT_DONE;
             return MP_OBJ_NEW_SMALL_INT(0); // success
 
-        case MP_BLOCKDEV_IOCTL_SYNC: //3
+        case MP_BLOCKDEV_IOCTL_SYNC: // 3
             // nothing to do
             return MP_OBJ_NEW_SMALL_INT(0); // success
 
-#ifdef ESP32
-        case MP_BLOCKDEV_IOCTL_BLOCK_COUNT: //4
+        #ifdef ESP32
+        case MP_BLOCKDEV_IOCTL_BLOCK_COUNT: // 4
             err = sdcard_ensure_card_init(self, false);
-            if (err != ERR_NOERROR)
+            if (err != ERR_NOERROR) {
                 return MP_OBJ_NEW_SMALL_INT(-1);
+            }
             return MP_OBJ_NEW_SMALL_INT(self->card.csd.capacity);
-#else
-            //this is called at disk_ioctl with paramenter GET_SECTOR_COUNT in vfs_fat_diskio.c
+        #else
+            // this is called at disk_ioctl with paramenter GET_SECTOR_COUNT in vfs_fat_diskio.c
             return MP_OBJ_NEW_SMALL_INT(sdmmc_card_num_blocks());
-#endif
+        #endif
 
-        case MP_BLOCKDEV_IOCTL_BLOCK_SIZE: //5
+        case MP_BLOCKDEV_IOCTL_BLOCK_SIZE: // 5
             err = sdcard_ensure_card_init(self, false);
-            if (err != ERR_NOERROR)
+            if (err != ERR_NOERROR) {
                 return MP_OBJ_NEW_SMALL_INT(-1);
+            }
             return MP_OBJ_NEW_SMALL_INT(_SECTOR_SIZE(self));
 
-        case MP_BLOCKDEV_IOCTL_BLOCK_ERASE: //6
+        case MP_BLOCKDEV_IOCTL_BLOCK_ERASE: // 6
         default: // unknown command
             return MP_OBJ_NEW_SMALL_INT(-1); // error
     }
@@ -497,25 +496,25 @@ static mp_obj_t machine_sdcard_ioctl(mp_obj_t self_in, mp_obj_t cmd_in, mp_obj_t
 static MP_DEFINE_CONST_FUN_OBJ_3(machine_sdcard_ioctl_obj, machine_sdcard_ioctl);
 
 static void machine_sdcard_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    sdcard_card_obj_t *self = (sdcard_card_obj_t*) self_in;
+    sdcard_card_obj_t *self = (sdcard_card_obj_t *)self_in;
 
-#ifdef CSR_SPISDCARD_BASE
+    #ifdef CSR_SPISDCARD_BASE
     mp_printf(print, "SDCard %p(%d) (SPI mode)", self, self->card);
-#else
+    #else
     uint32_t divider = sdphy_clocker_divider_read();
-    //printf("divider %d", divider);
+    // printf("divider %d", divider);
     mp_printf(print, "SDCard %p(%d) (full width mode & DMA, bus frequency %d KHz)", self, self->card,
-        CONFIG_CLOCK_FREQUENCY/(divider*1000));
-#endif
+        CONFIG_CLOCK_FREQUENCY / (divider * 1000));
+    #endif
 }
 
 
 static const mp_rom_map_elem_t machine_sdcard_locals_dict_table[] = {
-    //from stm32/sdcard.c:
-    //{ MP_ROM_QSTR(MP_QSTR_present), MP_ROM_PTR(&sd_present_obj) },
-    //{ MP_ROM_QSTR(MP_QSTR_power), MP_ROM_PTR(&sd_power_obj) },
-    //{ MP_ROM_QSTR(MP_QSTR_read), MP_ROM_PTR(&sd_read_obj) },
-    //{ MP_ROM_QSTR(MP_QSTR_write), MP_ROM_PTR(&sd_write_obj) },
+    // from stm32/sdcard.c:
+    // { MP_ROM_QSTR(MP_QSTR_present), MP_ROM_PTR(&sd_present_obj) },
+    // { MP_ROM_QSTR(MP_QSTR_power), MP_ROM_PTR(&sd_power_obj) },
+    // { MP_ROM_QSTR(MP_QSTR_read), MP_ROM_PTR(&sd_read_obj) },
+    // { MP_ROM_QSTR(MP_QSTR_write), MP_ROM_PTR(&sd_write_obj) },
 
     { MP_ROM_QSTR(MP_QSTR_info), MP_ROM_PTR(&sd_info_obj) },
     { MP_ROM_QSTR(MP_QSTR___del__), MP_ROM_PTR(&sd_deinit_obj) },
@@ -539,15 +538,13 @@ MP_DEFINE_CONST_OBJ_TYPE(
     );
 
 
-//vfs support, modified from ports/stm32/sdcard.c
-mp_uint_t sdcard_read_blocks(uint8_t *dest, uint32_t block_num, uint32_t num_blocks)
-{
-  return sdmmc_read_sectors(NULL, dest, block_num, num_blocks); //0 if OK
+// vfs support, modified from ports/stm32/sdcard.c
+mp_uint_t sdcard_read_blocks(uint8_t *dest, uint32_t block_num, uint32_t num_blocks) {
+    return sdmmc_read_sectors(NULL, dest, block_num, num_blocks); // 0 if OK
 }
 
-mp_uint_t sdcard_write_blocks(const uint8_t *src, uint32_t block_num, uint32_t num_blocks)
-{
-  return sdmmc_write_sectors(NULL, src, block_num, num_blocks); //0 if OK
+mp_uint_t sdcard_write_blocks(const uint8_t *src, uint32_t block_num, uint32_t num_blocks) {
+    return sdmmc_write_sectors(NULL, src, block_num, num_blocks); // 0 if OK
 }
 
 /*
@@ -558,33 +555,33 @@ static uint8_t pyb_sdmmc_flags;
 */
 const mp_obj_base_t machine_sdcard_obj = {&machine_sdcard_type};
 
-//Micropthon's FAT architecture:
-//extmod/vfs_fat_diskio.c implements disk_read that calls mp_vfs_blockdev_read (extmod/vfs_blockdev.c)
-//then calls funtion pointer in readblocks[2]=sdcard_read_blocks (native version)
-//or machine_sdcard_readblocks through machine_sdcard_readblocks_obj (python's version)
+// Micropthon's FAT architecture:
+// extmod/vfs_fat_diskio.c implements disk_read that calls mp_vfs_blockdev_read (extmod/vfs_blockdev.c)
+// then calls funtion pointer in readblocks[2]=sdcard_read_blocks (native version)
+// or machine_sdcard_readblocks through machine_sdcard_readblocks_obj (python's version)
 //
-//file_open in extmod/vfs_fat_file.c calls f_open (implemented in ff.c) that as defined by elchan's library, expect a disk_read implementation
-//file_open is called by file_obj_make_new() of type mp_type_vfs_fat_fileio (implements read, seek, etc)
-//MICROPY_PY_IO_FILEIO macro should be defined, and mp_type_fileio should be defined as mp_type_vfs_fat_fileio
-//py/modio.c should be used (enables uio module) with class FileIO
-//MICROPY_PY_IO_IOBASE may be also defined
-//see https://docs.micropython.org/en/v1.15/library/uio.html
-//uio.open(name, mode='r', **kwargs)
+// file_open in extmod/vfs_fat_file.c calls f_open (implemented in ff.c) that as defined by elchan's library, expect a disk_read implementation
+// file_open is called by file_obj_make_new() of type mp_type_vfs_fat_fileio (implements read, seek, etc)
+// MICROPY_PY_IO_FILEIO macro should be defined, and mp_type_fileio should be defined as mp_type_vfs_fat_fileio
+// py/modio.c should be used (enables uio module) with class FileIO
+// MICROPY_PY_IO_IOBASE may be also defined
+// see https://docs.micropython.org/en/v1.15/library/uio.html
+// uio.open(name, mode='r', **kwargs)
 
 
 void sdcard_init_vfs(fs_user_mount_t *vfs, int part) {
-    //pyb_sdmmc_flags = (pyb_sdmmc_flags & PYB_SDMMC_FLAG_ACTIVE) | PYB_SDMMC_FLAG_SD; // force SD mode
+    // pyb_sdmmc_flags = (pyb_sdmmc_flags & PYB_SDMMC_FLAG_ACTIVE) | PYB_SDMMC_FLAG_SD; // force SD mode
     vfs->base.type = &mp_fat_vfs_type;
     vfs->fatfs.drv = vfs;
     #if MICROPY_FATFS_MULTI_PARTITION
     vfs->fatfs.part = part;
     #endif
 
-#ifdef CSR_SPISDCARD_BASE
+    #ifdef CSR_SPISDCARD_BASE
     spisdcard_init();
-#else
+    #else
     sdcard_init();
-#endif
+    #endif
 
     vfs->blockdev.flags |= MP_BLOCKDEV_FLAG_NATIVE;
 /*
@@ -601,12 +598,12 @@ void sdcard_init_vfs(fs_user_mount_t *vfs, int part) {
     vfs->blockdev.writeblocks[2] = MP_OBJ_FROM_PTR(sdcard_write_blocks); // native version
 }
 
-bool sdcard_is_present(void) { //TODO: implement card detection
-#if defined(MICROPY_HW_SDCARD_DETECT_PIN)
-#warning read pin MICROPY_HW_SDCARD_DETECT_PIN
-#else
+bool sdcard_is_present(void) { // TODO: implement card detection
+    #if defined(MICROPY_HW_SDCARD_DETECT_PIN)
+    #warning read pin MICROPY_HW_SDCARD_DETECT_PIN
+    #else
     return true;
-#endif
+    #endif
 }
 
 #warning implement get_fattime using utime module

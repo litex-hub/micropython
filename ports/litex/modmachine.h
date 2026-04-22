@@ -13,4 +13,4 @@ extern const mp_obj_type_t machine_pin_type;
 
 void machine_timer_deinit_all(void);
 
-#endif //MICROPY_INCLUDED_LITEX_MODMACHINE_H
+#endif // MICROPY_INCLUDED_LITEX_MODMACHINE_H

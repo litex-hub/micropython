@@ -17,19 +17,19 @@ void isr(void) {
     // C-level handlers first: the BIOS UART RX FIFO and (optionally) the
     // legacy timer0 path own these unconditionally so libbase keeps
     // working under us.
-#ifdef TIMER0_INTERRUPT
-#ifndef TIMER0_POLLING
+    #ifdef TIMER0_INTERRUPT
+    #ifndef TIMER0_POLLING
     if (irqs & (1 << TIMER0_INTERRUPT)) {
         timer0_isr();
     }
-#endif
-#endif
+    #endif
+    #endif
 
-#ifdef UART_INTERRUPT
+    #ifdef UART_INTERRUPT
     if (irqs & (1 << UART_INTERRUPT)) {
         uart_isr();
     }
-#endif
+    #endif
 
     // Then dispatch any IRQ bits with a registered Python handler. The
     // dispatcher write-1-clears each peripheral's ev_pending so the IRQ
