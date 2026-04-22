@@ -14,6 +14,7 @@
 #include "py/stream.h"
 #include "shared/runtime/pyexec.h"
 
+#include "extmod/modnetwork.h"
 #include "extmod/vfs.h"
 #include "extmod/vfs_fat.h"
 
@@ -207,7 +208,10 @@ int upython_main(int argc, char **argv) {
     #endif
 
     mp_init();
-    // printf("C stack at %p, original %p\n", stack_top, &_fstack);
+
+    #if MICROPY_PY_NETWORK
+    mod_network_init();
+    #endif
 
     #if MICROPY_HW_SDCARD_MOUNT_AT_BOOT
     // if an SD card is present then mount it on /sd/
