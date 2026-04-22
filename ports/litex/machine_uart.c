@@ -178,7 +178,7 @@ static mp_uint_t machine_uart_read(mp_obj_t self_in, void *buf_in, mp_uint_t siz
     for (mp_uint_t i = 0; i < size; i++) {
         // Busy-wait for a byte to arrive.
         while (uart_reg_read(self, LITEX_UART_RXEMPTY_OFFSET)) {
-            MICROPY_EVENT_POLL_HOOK  // keep ctrl-C responsive
+            mp_event_handle_nowait();  // keep ctrl-C responsive
         }
         buf[i] = uart_reg_read(self, LITEX_UART_RXTX_OFFSET);
         // Ack the RX event so the EventManager IRQ line drops.
@@ -192,7 +192,7 @@ static mp_uint_t machine_uart_write(mp_obj_t self_in, const void *buf_in, mp_uin
     const uint8_t *buf = buf_in;
     for (mp_uint_t i = 0; i < size; i++) {
         while (uart_reg_read(self, LITEX_UART_TXFULL_OFFSET)) {
-            MICROPY_EVENT_POLL_HOOK
+            mp_event_handle_nowait();
         }
         uart_reg_write(self, LITEX_UART_RXTX_OFFSET, buf[i]);
     }

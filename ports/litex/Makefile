@@ -48,6 +48,12 @@ CFLAGS += $(CFLAGS_MOD)
 
 # Include py core make definitions
 include $(TOP)/py/py.mk
+# Pull in the extmod sources (extmod/modmachine.c, extmod/modtime.c,
+# extmod/modos.c, the shared/ machine_* drivers, ...). Without this, the
+# QSTR / module-registration scan never sees MP_REGISTER_EXTENSIBLE_MODULE
+# for machine/time/os and 'import machine' fails at runtime with
+# 'ImportError: module not found' even though MICROPY_PY_MACHINE=1.
+include $(TOP)/extmod/extmod.mk
 
 # Set Cross-Compiler.
 
