@@ -347,6 +347,77 @@ function ci_nrf_build {
 }
 
 ########################################################################################
+# ports/litex
+
+function ci_litex_setup {
+    ci_gcc_riscv_setup
+    sudo apt-get install --no-install-recommends -y \
+        verilator \
+        socat \
+        libevent-dev \
+        libjson-c-dev
+    # litex_setup.py clones LiteX + LiteX-Boards + cores into ~/litex and
+    # pip-installs them into the user site. --config=standard pulls the
+    # cores we need (litesdcard, liteeth, ...). We don't need the FPGA
+    # toolchains since CI only does sim runs and "header-only" board
+    # builds (no Vivado/Yosys invocation).
+    mkdir -p $HOME/litex
+    pushd $HOME/litex
+    wget -q https://raw.githubusercontent.com/enjoy-digital/litex/master/litex_setup.py
+    chmod +x litex_setup.py
+    ./litex_setup.py --init --install --config=standard --user
+    popd
+    echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+    export PATH="$HOME/.local/bin:$PATH"
+    verilator --version
+    riscv64-unknown-elf-gcc --version | head -1
+    python3 -c "import litex, litex_boards; print(litex.__file__)"
+}
+
+function ci_litex_build_sim {
+    # Usage: ci_litex_build_sim <cpu>
+    local cpu=${1:-vexriscv}
+    local out=/tmp/litex_mpy_sim_${cpu}
+    # Generate the SoC headers using the *same* args run_sim.py will use
+    # (via tools/litex_sim_fast.py). Identical generations on both sides
+    # avoid a stale CONFIG_CLOCK_FREQUENCY in the linked firmware.
+    python3 ports/litex/tools/litex_sim_fast.py \
+        --sys-clk-freq=100000 \
+        --skip-bios-boot \
+        --with-uart1 \
+        --cpu-type="$cpu" \
+        --integrated-main-ram-size=0x01000000 \
+        --libc-mode=full \
+        --output-dir="$out" \
+        --no-compile-gateware
+    make ${MAKEOPTS} -C ports/litex BUILD_DIRECTORY="$out"
+    # Sim test set: only the tests known to run without board peripherals.
+    # GPIO/PWM/SDCard/etc. are exercised on real hardware, not in CI.
+    make -C ports/litex BUILD_DIRECTORY="$out" test \
+        TESTS="test/test_hello_world.py test/test_machine.py test/test_litex.py test/test_irq.py test/test_uart.py"
+}
+
+function ci_litex_build_board {
+    # Usage: ci_litex_build_board <board>
+    # Generates the board's SoC headers via litex_boards (no FPGA toolchain
+    # required) and builds MicroPython firmware against them. Flashing is
+    # out of scope.
+    local board=${1:-digilent_arty}
+    local out=/tmp/litex_mpy_${board}
+    # --build triggers the SoC instantiation (which writes the software
+    # headers and builds the LiteX libraries we link against);
+    # --no-compile-gateware skips the FPGA toolchain since CI doesn't
+    # have one. --libc-mode=full pulls in sqrt/atan2/memcmp which
+    # MicroPython's modcmath / repl reference.
+    python3 -m "litex_boards.targets.${board}" \
+        --build \
+        --no-compile-gateware \
+        --libc-mode=full \
+        --output-dir="$out"
+    make ${MAKEOPTS} -C ports/litex BUILD_DIRECTORY="$out"
+}
+
+########################################################################################
 # ports/powerpc
 
 function ci_powerpc_setup {
