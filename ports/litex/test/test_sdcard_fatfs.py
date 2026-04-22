@@ -9,7 +9,7 @@ from machine import SDCard
 
 # Open SDCard.
 sd = SDCard()
-print("SDCard size: {}GB.".format(sd.info()[0]/1e9))
+print("SDCard size: {}GB.".format(sd.info()[0] / 1e9))
 
 # Mount FileSystem.
 vfs = os.VfsFat(sd)
@@ -27,21 +27,21 @@ print("Create {} file.".format(test_filename))
 
 # Write contents to it.
 with open(test_filename, "wt") as f:
-  f.write("Hello World from Micropython running on your LiteX SoC!\n")
+    f.write("Hello World from Micropython running on your LiteX SoC!\n")
 
 # List files.
 print("List files:")
 curr_list = os.listdir()
 print(curr_list)
 
-assert (prev_list != curr_list)
+assert prev_list != curr_list
 
 # Read test file contents.
 with open(test_filename, "rt") as f:
-  for l in f:
-    print(l.rstrip())
+    for l in f:
+        print(l.rstrip())
 
 # Remove test file.
 os.remove(test_filename)
 
-assert (prev_list == os.listdir())
+assert prev_list == os.listdir()

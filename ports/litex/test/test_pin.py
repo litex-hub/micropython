@@ -8,7 +8,7 @@
 from machine import Pin
 
 # Create Pins.
-inp  = Pin(3, Pin.IN)
+inp = Pin(3, Pin.IN)
 outp = Pin(4, Pin.OUT)
 
 # Set Output low.
@@ -24,7 +24,5 @@ outp.on()
 b = inp.value()
 
 # Check.
-assert(a != b)
+assert a != b
 print(a, b)
-
-
