@@ -51,6 +51,22 @@
 #define MICROPY_PY_OS                       (1)
 #define MICROPY_PY_OS_UNAME                 (1)
 
+// Networking — pulled in when the SoC has a LiteEth core (the Makefile
+// detects CSR_ETHMAC_BASE in csr.h and sets MICROPY_PY_LWIP=1, which
+// then gates everything else here).
+#ifndef MICROPY_PY_LWIP
+#define MICROPY_PY_LWIP                     (0)
+#endif
+#if MICROPY_PY_LWIP
+#define MICROPY_PY_NETWORK                  (1)
+#define MICROPY_PY_SOCKET                   (1)
+#define MICROPY_PY_LWIP_SOCK_RAW            (1)
+// Hostname used by lwIP's DHCP DISCOVER. Boards can override.
+#ifndef MICROPY_PY_NETWORK_HOSTNAME_DEFAULT
+#define MICROPY_PY_NETWORK_HOSTNAME_DEFAULT "litex"
+#endif
+#endif
+
 // Type definitions for the specific machine
 
 typedef intptr_t mp_int_t;
