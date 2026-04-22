@@ -8,8 +8,9 @@
 # failure it prints the captured output and exits non-zero.
 #
 # We don't reuse tools/pyboard.py because its read_until() uses a 10 s
-# timeout per step, which is often too tight for a 1 MHz simulated CPU
-# where each round-trip can take tens of seconds. This client uses generous
+# timeout per step, which is often too tight for the sim: even with
+# --fast-sim the Verilator wall-clock step rate makes a script-paste +
+# parse + execute round-trip easily exceed that. This client uses generous
 # sim-scale timeouts and is otherwise a minimal raw-REPL driver.
 #
 # Typical usage from ports/litex/:
@@ -40,10 +41,10 @@ DEFAULT_FIRMWARE = PORT_DIR / "build" / "firmware.bin"
 SIM_BUILD_TIMEOUT_S = 600
 REPL_READY_TIMEOUT_S = 300
 PTY_APPEAR_TIMEOUT_S = 30
-# At a simulated 1 MHz CPU the UART runs at ~1100 baud effective (sys_clk_freq
-# / baud / 10), so sending a 500-byte script takes tens of seconds and a full
-# round-trip through MicroPython's parser + compiler + execute can easily
-# take several minutes. Be generous.
+# LiteX's RS232PHYModel is a byte-level valid/ready stream (no baud), but
+# Verilator's wall-clock step rate still bounds throughput, and a full
+# round-trip through MicroPython's parser + compiler + execute under
+# Verilator can easily take a minute or two. Be generous.
 RAW_REPL_STEP_TIMEOUT_S = 600
 TEST_EXEC_TIMEOUT_S = 600
 # Log substring printed when the Verilator `make` recursion for the gateware
@@ -124,8 +125,9 @@ class PtyRepl:
                     self._read_available()
                     time.sleep(0.01)
             # Yield so the firmware's RX ISR has a chance to drain the
-            # FIFO before we pile in another chunk. On a 1 MHz simulated
-            # CPU 50 ms is generous; on hardware it's invisible.
+            # FIFO before we pile in another chunk. 50 ms is comfortably
+            # above the worst-case Verilator drain latency we've measured;
+            # on hardware it's invisible.
             if i + chunk_size < len(data):
                 time.sleep(0.05)
 
@@ -181,10 +183,9 @@ class PtyRepl:
     def enter_raw_repl(self, step_timeout):
         # Ensure we're in friendly REPL, interrupt any running code, then
         # switch to raw REPL. We intentionally skip pyboard.py's optional
-        # ctrl-D soft-reset step: our REPL has just booted so there's no
-        # running code to clear, and on 1.16-era MicroPython the response to
-        # ctrl-D in an empty raw-REPL buffer is 'OK\\x04\\x04>' rather than
-        # 'soft reboot', which would cause a false timeout.
+        # ctrl-D soft-reset step: the REPL has just booted so there's
+        # nothing to clear, and the soft-reset path triggers a sim-side
+        # boot loop that adds tens of seconds before the next prompt.
         self.write(b"\r\x02")  # ctrl-B: exit raw REPL if we were in one
         self.write(b"\r\x03\x03")  # ctrl-C twice: interrupt any running code
         self.drain(duration=2.0)
@@ -295,10 +296,10 @@ def kill_sim(proc):
 def strip_comments(source):
     """Drop full-line '#' comments and blank lines.
 
-    A 1 MHz sim UART delivers ~100 bytes/s, so every comment we don't send
-    saves roughly a second of wall-clock wait. We deliberately only strip
-    *full-line* comments — inline comments and docstrings are left alone so
-    we never alter the test's actual behavior or formatting.
+    Every byte we don't send is a Verilator step we don't pay for. We
+    deliberately only strip *full-line* comments — inline comments and
+    docstrings are left alone so we never alter the test's actual
+    behavior or formatting.
     """
     kept = []
     for line in source.splitlines():
@@ -356,8 +357,8 @@ def main():
         default=0x01000000,
         help="Integrated main RAM size (default: 16 MiB). MicroPython "
         "zeroes a GC alloc table proportional to this size at "
-        "startup; a simulated 1 MHz CPU needs minutes for 256 MiB, "
-        "seconds for 16 MiB.",
+        "startup; under Verilator that scales linearly, so keep this "
+        "small unless a test actually needs the headroom.",
     )
     parser.add_argument(
         "--opt-level",
@@ -383,7 +384,7 @@ def main():
         "--no-fast-sim",
         dest="fast_sim",
         action="store_false",
-        help="Use upstream litex_sim verbatim (1 MHz sys_clk, full BIOS).",
+        help="Use upstream litex_sim verbatim (1 MHz reported sys_clk, full BIOS — REPL takes ~30 s).",
     )
     parser.add_argument(
         "--sys-clk-freq",

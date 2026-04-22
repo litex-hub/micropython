@@ -107,17 +107,20 @@ Progress on branch `litex-1.29-rebase` (forked from `upstream/master`):
 - [x] **Build + `test/test_hello_world.py` green on LiteX sim.**
 
 Remaining polish (out of scope for the first "it runs" milestone):
-- [ ] `tools/codeformat.py` pass + copyright header unification so the
-      tree survives upstream's lint gate.
+- [x] `tools/codeformat.py` pass — uncrustify 0.72 + ruff format both
+      shipped, tree is now lint-clean against upstream's gate.
+- [x] Larger tests work in sim — `tools/run_sim.py` chunks raw-REPL
+      writes (64-byte chunks + 50 ms inter-chunk pause) so the
+      firmware's libbase RX ring buffer doesn't overflow.
+      `test_litex.py` (~660 bytes) and `test_irq.py` round-trip
+      cleanly. The 1 MHz / 100 kHz sim clock no longer constrains
+      script length.
+- [x] Sim wall-clock perf — `tools/litex_sim_fast.py` lowers the
+      reported sys_clk_freq to 100 kHz and uncomments LiteX's
+      `BIOS_NO_DELAYS` / `_PROMPT` / `_BUILD_TIME` / `_CRC` configs,
+      cutting REPL-up time from ~30 s to under 5 s.
 - [ ] Board-level `manifest.py` (currently none; required by 1.29's
       frozen-module machinery even if empty).
-- [ ] Larger tests (`test_machine.py`, `test_time.py`, ...) exercise
-      fine on hardware but time out on the simulated 1 MHz UART: they
-      need `--timer-uptime` SoCs or a raw-paste REPL mode in
-      `tools/run_sim.py` to be CI-viable. Not a port bug.
-- [ ] Document board-level CPU clock override (sim is fixed at 1 MHz;
-      the firmware can compute `mp_hal_delay_us` against
-      `CONFIG_CLOCK_FREQUENCY` already, so real boards just work).
 
 ### §3 — GitHub Actions CI
 
