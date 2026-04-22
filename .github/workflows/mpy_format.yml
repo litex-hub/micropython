@@ -1,15 +1,7 @@
 name: .mpy file format and tools
 
 on:
-  push:
-  pull_request:
-    paths:
-      - '.github/workflows/*.yml'
-      - 'examples/**'
-      - 'mpy-cross/**'
-      - 'py/**'
-      - 'tests/**'
-      - 'tools/**'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

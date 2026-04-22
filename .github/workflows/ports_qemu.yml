@@ -1,18 +1,7 @@
 name: qemu port
 
 on:
-  push:
-  pull_request:
-    paths:
-      - '.github/workflows/*.yml'
-      - 'tools/**'
-      - 'py/**'
-      - 'extmod/**'
-      - 'shared/**'
-      - 'lib/**'
-      - 'drivers/**'
-      - 'ports/qemu/**'
-      - 'tests/**'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

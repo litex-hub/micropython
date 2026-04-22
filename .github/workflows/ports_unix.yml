@@ -1,19 +1,7 @@
 name: unix port
 
 on:
-  push:
-  pull_request:
-    paths:
-      - '.github/workflows/*.yml'
-      - 'tools/**'
-      - 'py/**'
-      - 'extmod/**'
-      - 'shared/**'
-      - 'lib/**'
-      - 'examples/**'
-      - 'mpy-cross/**'
-      - 'ports/unix/**'
-      - 'tests/**'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

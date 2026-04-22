@@ -1,17 +1,7 @@
 name: stm32 port
 
 on:
-  push:
-  pull_request:
-    paths:
-      - '.github/workflows/*.yml'
-      - 'tools/**'
-      - 'py/**'
-      - 'extmod/**'
-      - 'shared/**'
-      - 'lib/**'
-      - 'drivers/**'
-      - 'ports/stm32/**'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

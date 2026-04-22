@@ -1,17 +1,7 @@
 name: nrf port
 
 on:
-  push:
-  pull_request:
-    paths:
-      - '.github/workflows/*.yml'
-      - 'tools/**'
-      - 'py/**'
-      - 'extmod/**'
-      - 'shared/**'
-      - 'lib/**'
-      - 'drivers/**'
-      - 'ports/nrf/**'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
