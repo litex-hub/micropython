@@ -17,6 +17,10 @@
 
 #include "litex_isr.h"
 
+// libbase irq helpers (irq_setmask / irq_getmask). These are inline in
+// LiteX's <irq.h>, so no extra link dep.
+#include <irq.h>
+
 // litex_csr_table[] / litex_irq_table[] — auto-generated sorted lists of
 // every CSR and IRQ-capable peripheral in the SoC this firmware was built
 // against. Emitted by tools/gen_csr_table.py from the SoC's csr.json.
@@ -156,6 +160,11 @@ void litex_isr_register(int irq_bit, uint32_t ev_pending_addr,
     }
     if (handler == mp_const_none) {
         if (slot >= 0) {
+            // Mask the IRQ at the CPU before clearing the registration so
+            // we don't race with the dispatcher.
+            #ifdef CONFIG_CPU_HAS_INTERRUPT
+            irq_setmask(irq_getmask() & ~(1u << irq_bit));
+            #endif
             litex_isr_table[slot].irq_bit = -1;
             MP_STATE_PORT(litex_isr_handlers)[slot * 2] = NULL;
             MP_STATE_PORT(litex_isr_handlers)[slot * 2 + 1] = NULL;
@@ -177,6 +186,12 @@ void litex_isr_register(int irq_bit, uint32_t ev_pending_addr,
     litex_isr_table[slot].ev_pending_addr = ev_pending_addr;
     MP_STATE_PORT(litex_isr_handlers)[slot * 2] = handler;
     MP_STATE_PORT(litex_isr_handlers)[slot * 2 + 1] = owner;
+    // Unmask the IRQ at the CPU so isr() will be entered when the
+    // peripheral asserts (main.c sets the mask to 0 at boot, so each
+    // user-driven IRQ has to be opted in here).
+    #ifdef CONFIG_CPU_HAS_INTERRUPT
+    irq_setmask(irq_getmask() | (1u << irq_bit));
+    #endif
 }
 
 void litex_isr_dispatch(uint32_t pending_irqs) {
