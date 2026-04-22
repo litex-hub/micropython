@@ -114,9 +114,9 @@ The first run includes a one-time Verilator C++ compilation (~2 minutes on
 a typical laptop); subsequent runs reuse the compiled `Vsim` binary.
 
 A 16 MiB main RAM is the default because MicroPython zeroes a GC alloc
-table proportional to the heap at startup and a simulated 1 MHz CPU
-takes tens of minutes to do that on 256 MiB. Passing `--ram-size=...`
-to `tools/run_sim.py` overrides it.
+table proportional to the heap at startup and that scales linearly with
+Verilator step rate. Passing `--ram-size=...` to `tools/run_sim.py`
+overrides it.
 
 The sim UART is a LiteX `RS232PHYModel` — a byte-level valid/ready stream
 with no per-bit baud timing — so the effective throughput is whatever
@@ -244,3 +244,158 @@ fb.text("LiteX + MicroPython", 10, 10, 0xFFFF)
 
 See [`examples/video_framebuf.py`](examples/video_framebuf.py) for a
 ready-to-run script.
+
+Supported hardware
+------------------
+
+The port is intentionally agnostic about CPU and board: anything LiteX
+can target works as long as the SoC is built with the right CSRs. The
+firmware compiles against the SoC's `software/include/generated/` headers
+(produced by the LiteX build), so the matrix below describes what has
+been *exercised*, not what is *possible*.
+
+**CPUs** — every CPU type supported by LiteX is in principle compilable;
+the ones tested with this port:
+
+| CPU            | Status     | Notes                                     |
+| -------------- | ---------- | ----------------------------------------- |
+| `vexriscv`     | primary    | Tested in sim and on hardware (Arty A7).  |
+| `vexriscv_smp` | should work| Same ABI as `vexriscv`; not in CI yet.    |
+| `naxriscv`     | should work| Needs SBT/Scala for SoC gen; CI omits it. |
+| `mor1kx`       | legacy     | Compiled in the 1.16-era port; untested.  |
+| `lm32`         | legacy     | Compiled in the 1.16-era port; untested.  |
+
+**Peripherals** — the Python-visible classes are gated on the
+corresponding CSRs, so a class only appears when the SoC was built with
+that core enabled:
+
+| Python class            | Required CSR / build flag       | Source        |
+| ----------------------- | ------------------------------- | ------------- |
+| `machine.Pin`           | `CSR_GPIO_BASE` (`--with-gpio`) | `machine_pin.c` |
+| `machine.SPI`           | `CSR_SPI_BASE` / `CSR_SPI0_BASE` (`--with-spi`) | `machine_hw_spi.c` |
+| `machine.Timer`         | `CSR_TIMER0_BASE` (always present) | `machine_timer.c` |
+| `machine.PWM`           | `CSR_LEDS_PWM_ENABLE_ADDR` (`--with-led-chaser` + PWM) | `machine_pwm.c` |
+| `machine.SDCard`        | `CSR_SDCORE_BASE` or `CSR_SPISDCARD_BASE` | `machine_sdcard.c` |
+| `machine.UART(id)`      | `CSR_UART<N>_BASE` (extra `--with-uart`) | `machine_uart.c` |
+| `machine.ADC(channel)`  | `CSR_XADC_*` / `CSR_SYSMON_*` / `CSR_LITEADC_*` | `machine_adc.c` |
+| `machine.SoftSPI`       | always available (bit-bangs Pin)| `extmod`       |
+| `machine.SoftI2C`       | always available (bit-bangs Pin)| `extmod`       |
+| `litex.LED`             | `CSR_LEDS_BASE`                 | `litex_led.c`  |
+| `litex.DMAReader/Writer`| `CSR_DMA_READER_BASE` / `CSR_DMA_WRITER_BASE` | `litex_dma.c` |
+| `litex.Video`           | `CSR_VIDEO_FRAMEBUFFER_BASE` (`--with-video-framebuffer`) | `litex_video.c` |
+| `litex.EventManager`    | any peripheral with `<prefix>_ev_*` CSRs | `modlitex.c` |
+
+**Boards** — any [LiteX-Boards](https://github.com/litex-hub/litex-boards)
+target works once you generate it with `--build`. The port is
+specifically exercised on:
+
+| Board            | LiteX-Boards target                | Notes                  |
+| ---------------- | ---------------------------------- | ---------------------- |
+| Digilent Arty A7 | `litex_boards.targets.digilent_arty` | Reference target; CI build. |
+| Terasic DE0-Nano | `litex_boards.targets.terasic_de0nano` | No DRAM; firmware fits in SRAM only with care. |
+| LiteX Sim        | `litex.tools.litex_sim`            | Verilator; used for CI. |
+
+Architecture
+------------
+
+The port is a thin glue layer between LiteX's generated SoC description
+and MicroPython's HAL. There is no hand-written hardware definition —
+every register address, IRQ number, and peripheral capability is
+discovered at firmware compile time from the headers LiteX emits.
+
+```
+SoC generation (Python, host)
+   │  litex_boards.targets.<board> --build
+   ▼
+build/<board>/software/include/generated/
+   ├── csr.h              # CSR_<PERIPH>_<REG>_ADDR macros
+   ├── soc.h              # CONFIG_CLOCK_FREQUENCY, BUS_STANDARD, …
+   ├── mem.h              # MAIN_RAM_BASE/SIZE, ROM_BASE/SIZE
+   ├── git.h              # LITEX_GIT_SHA1
+   ├── variables.mak      # CPU flags, library paths, CRT0 path
+   └── csr.json           # JSON form, consumed by gen_csr_table.py
+   │
+   ▼
+ports/litex (this port)
+   ├── modlitex.c         # `litex` module — CSR/MMIO/EventManager
+   ├── modmachine.c       # `machine` module — port hooks + EXTRA_GLOBALS
+   ├── machine_*.c        # per-peripheral types, gated on CSR_*
+   ├── litex_*.c          # LiteX-specific types (LED, DMA, Video)
+   ├── isr.c              # CPU IRQ entry → libbase + litex_isr_dispatch
+   ├── mphalport.{c,h}    # mp_hal_* hooks (delays, ticks, stdio)
+   └── tools/
+       ├── gen_csr_table.py     # csr.json → genhdr/litex_csr_table.h
+       ├── litex_sim_fast.py    # litex_sim wrapper (faster sim)
+       └── run_sim.py           # spawn sim + drive raw REPL
+```
+
+The chain a Python call goes through, end to end, for a peripheral access:
+
+```
+machine.Timer(0).callback(f)         # Python
+   │
+   ▼ MICROPY_PY_MACHINE_INCLUDEFILE → modmachine.c → machine_timer.c
+   │
+   ▼ libbase / direct CSR write
+   │   timer0_load_write(...) → MMPTR(CSR_TIMER0_LOAD_ADDR) = ...
+   │
+   ▼ Hardware (Verilator or FPGA)
+       on event: IRQ asserted → CPU enters isr()
+   ▲
+   │ isr.c → litex_isr_dispatch → mp_sched_schedule(f, owner)
+   │
+   ▼ MicroPython main task picks up scheduled callback
+   f(owner)
+```
+
+Adding a new peripheral
+-----------------------
+
+The pattern for exposing a LiteX peripheral as a Python class:
+
+1. **Pick a CSR you can detect on**. Every LiteX core emits a stable
+   `CSR_<PERIPH>_BASE` macro into `csr.h`. Use it as the conditional in
+   `mpconfigport.h` / `modmachine.c` / `Makefile` — the class only
+   compiles in if the SoC was built with the core. No runtime probing.
+
+2. **Write `<thing>.c` next to the existing peripherals**. Use
+   `machine_pin.c` (small, type+method pattern) or `machine_uart.c`
+   (stream protocol + IRQ) as templates. Define the type with
+   `MP_DEFINE_CONST_OBJ_TYPE(...)`. Talk to the hardware through the
+   generated CSR accessors (`<periph>_<reg>_read()`, `..._write()`) —
+   never hard-code addresses.
+
+3. **Hook it into the right module**:
+   - `machine.*` types: add an `extern const mp_obj_type_t` and an
+     `MACHINE_<NAME>_ENTRY` block in `modmachine.c`, then reference it
+     from `MICROPY_PY_MACHINE_EXTRA_GLOBALS`.
+   - `litex.*` types: add an `extern` and an entry in
+     `litex_module_globals_table[]` in `modlitex.c`.
+
+4. **Wire IRQs (optional)**. If the peripheral has a LiteX
+   `EventManager` (`<prefix>_ev_pending/_enable/_status` CSRs), users
+   get IRQ→Python dispatch for free via `litex.EventManager(prefix)`.
+   For type-specific `.irq()` API (like `machine.UART.irq()`), call
+   `litex_isr_register(bit, ev_pending_addr, handler, owner)` from your
+   class — it takes care of CPU mask + scheduling.
+
+5. **Add a sim-friendly test under `test/`**. If the peripheral is
+   present in the `litex_sim` build (most non-physical cores are),
+   it'll then be exercised by `make test` and CI.
+
+Frozen Python modules
+---------------------
+
+The port ships an empty `manifest.py` so MicroPython 1.29's frozen
+module machinery has something to point at. To freeze board-specific
+Python helpers into the firmware:
+
+```python
+# ports/litex/manifest.py
+include("$(MPY_DIR)/extmod/asyncio")    # any frozen library
+freeze("$(PORT_DIR)/modules")           # your own .py files
+```
+
+The build picks this up automatically — `make` re-freezes whenever any
+input under `manifest.py`'s tree changes. Frozen modules `import` like
+any other Python module but live in ROM and don't consume heap.

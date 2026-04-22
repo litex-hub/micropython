@@ -7,6 +7,7 @@ on:
       - 'tools/**'
       - 'py/**'
       - 'extmod/**'
+      - 'shared/**'
       - 'lib/**'
       - 'drivers/**'
       - 'ports/litex/**'
@@ -16,70 +17,45 @@ on:
       - 'tools/**'
       - 'py/**'
       - 'extmod/**'
+      - 'shared/**'
       - 'lib/**'
       - 'drivers/**'
       - 'ports/litex/**'
 
-# Allow one run per ref, cancelling in-progress builds when new commits land.
 concurrency:
-  group: ports-litex-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build_and_test:
+  build_and_test_sim:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        cpu: [vexriscv]
     steps:
     - uses: actions/checkout@v4
-
-    - name: Install system packages
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
-          verilator \
-          socat \
-          gcc-riscv64-unknown-elf \
-          libnewlib-dev \
-          libevent-dev \
-          libjson-c-dev \
-          python3-pip \
-          python3-venv
-
-    - name: Install LiteX
-      run: |
-        mkdir -p $HOME/litex && cd $HOME/litex
-        wget -q https://raw.githubusercontent.com/enjoy-digital/litex/master/litex_setup.py
-        chmod +x litex_setup.py
-        # --init clones/updates all litex-hub repos; --install installs them
-        # into ~/.local via pip; --config=standard picks the usual cores.
-        ./litex_setup.py --init --install --config=standard --user
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-    - name: Show tool versions
-      run: |
-        verilator --version
-        riscv64-unknown-elf-gcc --version | head -1
-        python3 -m litex.tools.litex_sim --help | head -1 || true
-
-    - name: Generate sim SoC (headers + libs only, skip Verilator build)
-      run: |
-        python3 -m litex.tools.litex_sim \
-          --cpu-type=vexriscv \
-          --integrated-main-ram-size=0x01000000 \
-          --libc-mode=full \
-          --output-dir=/tmp/litex_mpy_sim \
-          --no-compile-gateware
-
-    - name: Build MicroPython firmware for the sim target
-      run: |
-        make -C ports/litex BUILD_DIRECTORY=/tmp/litex_mpy_sim -j$(nproc)
-
-    - name: Run sim smoke test
-      run: |
-        make -C ports/litex BUILD_DIRECTORY=/tmp/litex_mpy_sim test
-
+    - name: Install packages
+      run: tools/ci.sh ci_litex_setup
+    - name: Build firmware and run sim tests (${{ matrix.cpu }})
+      run: tools/ci.sh ci_litex_build_sim ${{ matrix.cpu }}
     - name: Dump sim log on failure
       if: failure()
       run: |
         echo "=== last 200 lines of /tmp/litex_sim.log ==="
         tail -200 /tmp/litex_sim.log 2>/dev/null || echo "(no log found)"
+
+  build_boards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [digilent_arty]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install packages
+      run: tools/ci.sh ci_litex_setup
+    - name: Build firmware for ${{ matrix.board }}
+      run: tools/ci.sh ci_litex_build_board ${{ matrix.board }}

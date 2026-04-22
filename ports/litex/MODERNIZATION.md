@@ -124,23 +124,37 @@ Remaining polish (out of scope for the first "it runs" milestone):
 
 ### §3 — GitHub Actions CI
 
-One workflow, `.github/workflows/ports_litex.yml`, patterned after
-`ports_qemu-arm.yml`:
+`.github/workflows/ports_litex.yml` is in place and patterned after
+`ports_qemu.yml`. Helpers live in `tools/ci.sh` (`ci_litex_setup`,
+`ci_litex_build_sim`, `ci_litex_build_board`).
 
-- Install Verilator, `riscv64-unknown-elf-gcc`, Python, `litex`
-  (via `litex_setup.py --init --install`).
-- Generate a sim target, build the firmware, run the sim test harness from §2.
-- Matrix on CPU variant (`vexriscv`, `vexriscv_smp`, `naxriscv`) for cheap
-  CPU-abstraction coverage.
-- 2–3 representative boards built (not flashed) to catch per-board breakage
-  (`digilent_arty`, `terasic_de0nano`).
+Shipped:
+- [x] Install Verilator, riscv toolchain, LiteX (via `litex_setup.py
+      --init --install --config=standard`) inside `ci_litex_setup`.
+- [x] `build_and_test_sim` job: generates sim SoC via `litex_sim_fast.py`
+      with the same args as `tools/run_sim.py`, builds firmware, runs
+      the sim-safe test set (`hello_world`, `machine`, `litex`, `irq`,
+      `uart`).
+- [x] `build_boards` job: invokes `litex_boards.targets.<board> --build
+      --no-compile-gateware --libc-mode=full` to produce headers + LiteX
+      libraries without an FPGA toolchain, then links MicroPython
+      firmware against them. Verifies per-board breakage without
+      requiring Vivado/Yosys in CI.
+
+Pending follow-ups:
+- [ ] Extend the CPU matrix beyond `vexriscv` (`vexriscv_smp` should
+      slot in cheaply; `naxriscv` needs SBT/Scala which is too heavy).
+- [ ] Extend the board matrix beyond `digilent_arty`
+      (`terasic_de0nano`, …) as we confirm they link cleanly.
+- [ ] Cache `~/.local` from `litex_setup.py --install` to cut ~3 min
+      off cold runs.
 
 ### §4 — README + feature additions
 
-**README**: the quickstart and sim section are in place. Full rewrite
-(supported CPUs/boards/peripherals as a table, architecture note
-CSR → `generated/csr.h` → `mp_hal_*` → Python, "how to add a peripheral"
-recipe, frozen modules via `manifest.py`) is deferred.
+**README**: full rewrite landed. Quickstart, sim section, supported
+hardware tables (CPU / peripheral / board), architecture diagram
+(CSR → generated/csr.h → mp_hal → Python), "adding a new peripheral"
+recipe, and frozen modules via `manifest.py` are all in place.
 
 **Shipped across sessions**:
 - [x] Extended the `litex` module with build metadata and MMIO helpers:
@@ -165,14 +179,11 @@ recipe, frozen modules via `manifest.py`) is deferred.
       board-level variant wants to freeze .py modules.
 
 **Feature additions, still pending** (rough priority order):
-- Wire `litex.EventManager` / `machine.UART` handlers into `isr()` so
-  IRQs dispatch via `mp_sched_schedule` to Python callbacks. Only
-  polling works today.
 - `litex.Ethernet` / `socket` over LiteEth (big — needs lwIP; later pass).
 - `litex.SATA`, `litex.PCIe` BAR access — niche but LiteX-differentiating.
-- Non-Xilinx ADC cores (LiteADC) — would benefit from a common base class.
-- `tools/codeformat.py` uncrustify pass — blocked on uncrustify 0.72
-  install; manual consistency check done for now.
+- Non-Xilinx ADC cores (LiteADC) — current `machine.ADC` has a generic
+  read path but the channel-detection enum needs a common base class
+  refactor before LiteADC slots in cleanly.
 
 ## Working rules
 
