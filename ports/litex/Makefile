@@ -86,6 +86,12 @@ INC += -I$(TOP)
 INC += -I$(BUILD_DIRECTORY)/software/include
 INC += -I$(SOC_DIRECTORY)/software/include
 INC += -I$(CPU_DIRECTORY)
+# picolibc headers — required when the host toolchain is a bare
+# gcc-cross without a bundled libc (Debian/Ubuntu's
+# gcc-riscv64-unknown-elf, which CI uses). Toolchains like SiFive GCC
+# that bundle newlib also work without this — the picolibc path is
+# just ignored because its headers cover the same stdlib surface.
+INC += -I$(PICOLIBC_DIRECTORY)/libc/include
 
 # Set LDFLAGS.
 #
