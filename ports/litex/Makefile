@@ -86,15 +86,14 @@ INC += -I$(TOP)
 INC += -I$(BUILD_DIRECTORY)/software/include
 INC += -I$(SOC_DIRECTORY)/software/include
 INC += -I$(CPU_DIRECTORY)
-# picolibc headers — required when the host toolchain is a bare
-# gcc-cross without a bundled libc (Debian/Ubuntu's
-# gcc-riscv64-unknown-elf, which CI uses). Toolchains like SiFive GCC
-# that bundle newlib also work without this — the picolibc path is
-# just ignored because its headers cover the same stdlib surface.
-# The second `libc` path is where meson generates `picolibc.h` during
-# the libc build (mirrors `-I$(BUILDINC_DIRECTORY)/../libc` from
-# LiteX's own soc/software/common.mak).
+# Mirror the include set from LiteX's own soc/software/common.mak so
+# we work on bare gcc-cross toolchains (Debian/Ubuntu's
+# gcc-riscv64-unknown-elf used by CI) that don't bundle a libc.
+# Toolchains that DO bundle newlib (SiFive GCC, etc.) ignore the
+# extra -I because their search order finds bundled headers first.
 INC += -I$(PICOLIBC_DIRECTORY)/libc/include
+INC += -I$(LIBBASE_DIRECTORY)
+INC += -I$(SOC_DIRECTORY)/software
 INC += -I$(BUILD_DIRECTORY)/software/libc
 
 # Set LDFLAGS.
