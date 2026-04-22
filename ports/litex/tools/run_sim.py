@@ -220,10 +220,21 @@ class PtyRepl:
 
 
 def spawn_sim(args):
-    cmd = [
-        sys.executable,
-        "-m",
-        "litex.tools.litex_sim",
+    if args.fast_sim:
+        # Use the local wrapper that monkey-patches litex_sim's hard-coded
+        # sys_clk_freq down and uncomments the BIOS_NO_DELAYS / NO_PROMPT
+        # configs so the BIOS skips its serialboot timeout. Cuts REPL-up
+        # time on the sim from ~30 s to under 5 s.
+        cmd = [
+            sys.executable,
+            str(PORT_DIR / "tools" / "litex_sim_fast.py"),
+            "--sys-clk-freq",
+            str(args.sys_clk_freq),
+            "--skip-bios-boot",
+        ]
+    else:
+        cmd = [sys.executable, "-m", "litex.tools.litex_sim"]
+    cmd += [
         "--cpu-type",
         args.cpu_type,
         "--integrated-main-ram-size",
@@ -349,6 +360,29 @@ def main():
         default=1,
         help="Verilator runtime thread count (default: 1; for "
         "a small SoC more threads usually hurt).",
+    )
+    parser.add_argument(
+        "--fast-sim",
+        action="store_true",
+        default=True,
+        help="Spawn the sim via tools/litex_sim_fast.py instead of upstream "
+        "litex_sim. Lowers sys_clk_freq and turns on BIOS_NO_DELAYS so the "
+        "REPL appears in seconds instead of tens of seconds (default: on).",
+    )
+    parser.add_argument(
+        "--no-fast-sim",
+        dest="fast_sim",
+        action="store_false",
+        help="Use upstream litex_sim verbatim (1 MHz sys_clk, full BIOS).",
+    )
+    parser.add_argument(
+        "--sys-clk-freq",
+        type=lambda s: int(float(s)),
+        default=100_000,
+        help="With --fast-sim, the SoC clock to advertise (default: 100 kHz). "
+        "Lower values make every sim-time delay (BIOS timeouts, "
+        "mp_hal_delay_ms, time.sleep) faster in wall-clock; the actual "
+        "Verilator step rate is unchanged.",
     )
     parser.add_argument(
         "--log",
