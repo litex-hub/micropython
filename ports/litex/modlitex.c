@@ -8,14 +8,18 @@
 #include "py/obj.h"
 #include "py/runtime.h"
 #include "py/mphal.h"
+#include "py/mpstate.h"
+#include "py/mperrno.h"
 
 #include <generated/csr.h>
 #include <generated/mem.h>
 #include <generated/git.h>
 
-// litex_csr_table[] — an auto-generated sorted list of every CSR in the SoC
-// this firmware was built against, with its address, width, and r/w type.
-// Emitted by tools/gen_csr_table.py from the SoC's csr.json.
+#include "litex_isr.h"
+
+// litex_csr_table[] / litex_irq_table[] — auto-generated sorted lists of
+// every CSR and IRQ-capable peripheral in the SoC this firmware was built
+// against. Emitted by tools/gen_csr_table.py from the SoC's csr.json.
 #include "genhdr/litex_csr_table.h"
 
 extern const mp_obj_type_t litex_led_type;
@@ -118,6 +122,95 @@ static mp_obj_t litex_csr_write(mp_obj_t name_obj, mp_obj_t value_obj) {
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(litex_csr_write_obj, litex_csr_write);
+
+// ---------------------------------------------------------------------------
+// IRQ -> Python handler dispatch.
+//
+// The table itself lives in MP_STATE_PORT() so the GC keeps the Python
+// handler/owner objects alive for as long as a registration is active.
+// Two parallel arrays of 8 slots each is enough for any realistic LiteX
+// SoC; doubling later is a 1-line bump.
+// ---------------------------------------------------------------------------
+
+#define LITEX_MAX_IRQ_HANDLERS 8
+
+typedef struct {
+    int8_t irq_bit;             // -1 = slot empty
+    uint32_t ev_pending_addr;
+} litex_isr_entry_t;
+
+static litex_isr_entry_t litex_isr_table[LITEX_MAX_IRQ_HANDLERS] = {
+    [0 ... LITEX_MAX_IRQ_HANDLERS - 1] = { .irq_bit = -1 },
+};
+
+void litex_isr_register(int irq_bit, uint32_t ev_pending_addr,
+                        mp_obj_t handler, mp_obj_t owner) {
+    // Replace any existing entry for this irq_bit, then look for a free
+    // slot. Storage is small enough (8 slots) that linear scan is fine.
+    int slot = -1;
+    for (int i = 0; i < LITEX_MAX_IRQ_HANDLERS; i++) {
+        if (litex_isr_table[i].irq_bit == irq_bit) {
+            slot = i;
+            break;
+        }
+    }
+    if (handler == mp_const_none) {
+        if (slot >= 0) {
+            litex_isr_table[slot].irq_bit = -1;
+            MP_STATE_PORT(litex_isr_handlers)[slot * 2] = NULL;
+            MP_STATE_PORT(litex_isr_handlers)[slot * 2 + 1] = NULL;
+        }
+        return;
+    }
+    if (slot < 0) {
+        for (int i = 0; i < LITEX_MAX_IRQ_HANDLERS; i++) {
+            if (litex_isr_table[i].irq_bit < 0) {
+                slot = i;
+                break;
+            }
+        }
+        if (slot < 0) {
+            mp_raise_OSError(MP_ENOMEM);
+        }
+    }
+    litex_isr_table[slot].irq_bit = (int8_t)irq_bit;
+    litex_isr_table[slot].ev_pending_addr = ev_pending_addr;
+    MP_STATE_PORT(litex_isr_handlers)[slot * 2] = handler;
+    MP_STATE_PORT(litex_isr_handlers)[slot * 2 + 1] = owner;
+}
+
+void litex_isr_dispatch(uint32_t pending_irqs) {
+    for (int i = 0; i < LITEX_MAX_IRQ_HANDLERS; i++) {
+        if (litex_isr_table[i].irq_bit < 0) {
+            continue;
+        }
+        if (pending_irqs & (1u << litex_isr_table[i].irq_bit)) {
+            // Write-1-to-clear: re-write what's there to ack every set
+            // bit. Read-modify-write here is racy with new events, but
+            // any new event that arrives between the read and the write
+            // also has its bit re-set after our write, so it's preserved.
+            uint32_t ev = MMPTR(litex_isr_table[i].ev_pending_addr);
+            MMPTR(litex_isr_table[i].ev_pending_addr) = ev;
+            mp_sched_schedule(MP_STATE_PORT(litex_isr_handlers)[i * 2],
+                MP_STATE_PORT(litex_isr_handlers)[i * 2 + 1]);
+        }
+    }
+}
+
+// 16 = 8 slots * 2 (handler, owner) per slot. void* so the GC scans them
+// without caring about the mp_obj_t representation.
+MP_REGISTER_ROOT_POINTER(void *litex_isr_handlers[16]);
+
+// Look up an IRQ bit by peripheral prefix. Returns -1 if the prefix has no
+// IRQ wired (or doesn't exist).
+static int litex_irq_for_prefix(const char *prefix) {
+    for (size_t i = 0; i < LITEX_IRQ_TABLE_SIZE; i++) {
+        if (strcmp(litex_irq_table[i].prefix, prefix) == 0) {
+            return litex_irq_table[i].bit;
+        }
+    }
+    return -1;
+}
 
 // litex.EventManager("<prefix>") — wrap a LiteX EventManager CSR block.
 //
@@ -228,12 +321,33 @@ static mp_obj_t litex_event_manager_disable(mp_obj_t self_in, mp_obj_t mask_obj)
 static MP_DEFINE_CONST_FUN_OBJ_2(litex_event_manager_disable_obj,
                                  litex_event_manager_disable);
 
+// EventManager.irq(handler) — register a Python callback for this
+// peripheral's IRQ. The callback is scheduled (mp_sched_schedule) when
+// the IRQ fires; the dispatcher acks the event on the way out so the
+// IRQ deasserts. Pass None to remove the handler.
+//
+// Caller is still responsible for enabling the desired event sources via
+// .enable(mask) — this only registers the dispatch target.
+static mp_obj_t litex_event_manager_irq(mp_obj_t self_in, mp_obj_t handler) {
+    litex_event_manager_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    int bit = litex_irq_for_prefix(self->prefix);
+    if (bit < 0) {
+        mp_raise_msg_varg(&mp_type_ValueError,
+            MP_ERROR_TEXT("peripheral '%s' has no IRQ wired"), self->prefix);
+    }
+    litex_isr_register(bit, self->pending_addr, handler, self_in);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(litex_event_manager_irq_obj,
+                                 litex_event_manager_irq);
+
 static const mp_rom_map_elem_t litex_event_manager_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_pending), MP_ROM_PTR(&litex_event_manager_pending_obj) },
     { MP_ROM_QSTR(MP_QSTR_status),  MP_ROM_PTR(&litex_event_manager_status_obj) },
     { MP_ROM_QSTR(MP_QSTR_clear),   MP_ROM_PTR(&litex_event_manager_clear_obj) },
     { MP_ROM_QSTR(MP_QSTR_enable),  MP_ROM_PTR(&litex_event_manager_enable_obj) },
     { MP_ROM_QSTR(MP_QSTR_disable), MP_ROM_PTR(&litex_event_manager_disable_obj) },
+    { MP_ROM_QSTR(MP_QSTR_irq),     MP_ROM_PTR(&litex_event_manager_irq_obj) },
 };
 static MP_DEFINE_CONST_DICT(litex_event_manager_locals_dict,
                             litex_event_manager_locals_dict_table);
