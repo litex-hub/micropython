@@ -130,6 +130,7 @@ SRC_C = \
 	machine_pin.c \
 	machine_uart.c \
 	machine_adc.c \
+	$(if $(filter 1,$(MICROPY_PY_LWIP)),liteeth_netif.c) \
 	shared/runtime/sys_stdio_mphal.c \
 	shared/runtime/stdout_helpers.c \
 	shared/runtime/interrupt_char.c \
