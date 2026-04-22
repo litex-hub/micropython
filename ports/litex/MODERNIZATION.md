@@ -119,8 +119,9 @@ Remaining polish (out of scope for the first "it runs" milestone):
       reported sys_clk_freq to 100 kHz and uncomments LiteX's
       `BIOS_NO_DELAYS` / `_PROMPT` / `_BUILD_TIME` / `_CRC` configs,
       cutting REPL-up time from ~30 s to under 5 s.
-- [ ] Board-level `manifest.py` (currently none; required by 1.29's
-      frozen-module machinery even if empty).
+- [x] `manifest.py` — empty stub in place so `FROZEN_MANIFEST`
+      resolves; freezing real .py modules is a per-board concern,
+      tracked under §4 features.
 
 ### §3 — GitHub Actions CI
 
@@ -172,8 +173,12 @@ recipe, and frozen modules via `manifest.py` are all in place.
       REPL). Full MicroPython stream protocol (read / readline / write)
       plus `.irq(handler, trigger)` for RX/TX events on the same
       `litex_isr_register` plumbing.
-- [x] `machine.ADC` for the Xilinx XADC system monitor (temperature,
-      vccint, vccaux, vccbram). `read()` / `read_u16()`.
+- [x] `machine.ADC` for the Xilinx XADC / SystemMonitor family
+      (S7 / Ultrascale / Ultrascale+ / ZynqUSP). Symbolic aliases for
+      `temperature`, `vcc{int,aux,bram}`, plus the ZynqUSP-specific
+      `vccpsint{lp,fp}` / `vccpsaux`. Falls back to raw CSR-name
+      addressing (`machine.ADC('xadc_temperature')`) for SoCs that
+      wrap the core under a non-default prefix.
 - [x] `framebuf` integration for `litex.Video` — the Video type already
       exposed the buffer protocol; this pass adds an example and doc.
 - [x] `test/test_litex.py` covers the new litex module API.
@@ -183,9 +188,17 @@ recipe, and frozen modules via `manifest.py` are all in place.
 **Feature additions, still pending** (rough priority order):
 - `litex.Ethernet` / `socket` over LiteEth (big — needs lwIP; later pass).
 - `litex.SATA`, `litex.PCIe` BAR access — niche but LiteX-differentiating.
-- Non-Xilinx ADC cores (LiteADC) — current `machine.ADC` has a generic
-  read path but the channel-detection enum needs a common base class
-  refactor before LiteADC slots in cleanly.
+- LUNA USB-CDC ACM as a `machine.UART` backend — opportunity for boards
+  with a USB phy now that LiteX ships `usb_acm` via LUNA (Mar 2026).
+- Ship a real frozen-module `manifest.py` for at least one example
+  board (the empty stub is in place; this is the per-board freeze
+  recipe + wiring through `FROZEN_MANIFEST`).
+
+> Note: an earlier iteration of this list mentioned a "LiteADC" core to
+> wrap. There is no such core in upstream LiteX or under `litex-hub`;
+> the only ADC LiteX ships today is the Xilinx XADC / SystemMonitor
+> wrapper, which `machine.ADC` already covers. SoCs using a custom or
+> external ADC can address it via raw CSR name.
 
 ## Working rules
 

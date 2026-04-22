@@ -350,6 +350,8 @@ function ci_nrf_build {
 # ports/litex
 
 function ci_litex_setup {
+    # Verilator + socat + json-c are tiny apt installs and don't survive
+    # an actions/cache restore (they live in /usr), so always install them.
     ci_gcc_riscv_setup
     sudo apt-get install --no-install-recommends -y \
         verilator \
@@ -357,16 +359,23 @@ function ci_litex_setup {
         libevent-dev \
         libjson-c-dev
     # litex_setup.py clones LiteX + LiteX-Boards + cores into ~/litex and
-    # pip-installs them into the user site. --config=standard pulls the
-    # cores we need (litesdcard, liteeth, ...). We don't need the FPGA
-    # toolchains since CI only does sim runs and "header-only" board
-    # builds (no Vivado/Yosys invocation).
-    mkdir -p $HOME/litex
-    pushd $HOME/litex
-    wget -q https://raw.githubusercontent.com/enjoy-digital/litex/master/litex_setup.py
-    chmod +x litex_setup.py
-    ./litex_setup.py --init --install --config=standard --user
-    popd
+    # pip-installs them into the user site (~/.local). Both directories
+    # are cached by the workflow's actions/cache step, so on a warm
+    # cache we just put ~/.local/bin back on $PATH and skip the slow
+    # clone/install.
+    if [ -x "$HOME/.local/bin/litex_term" ] && [ -d "$HOME/litex/litex" ]; then
+        echo "ci_litex_setup: cache hit — skipping litex_setup.py"
+    else
+        mkdir -p $HOME/litex
+        pushd $HOME/litex
+        wget -q https://raw.githubusercontent.com/enjoy-digital/litex/master/litex_setup.py
+        chmod +x litex_setup.py
+        # --config=standard pulls in the cores we need (litesdcard,
+        # liteeth, ...). We don't need the FPGA toolchains since CI
+        # only does sim runs and "header-only" board builds.
+        ./litex_setup.py --init --install --config=standard --user
+        popd
+    fi
     echo "$HOME/.local/bin" >> "$GITHUB_PATH"
     export PATH="$HOME/.local/bin:$PATH"
     verilator --version

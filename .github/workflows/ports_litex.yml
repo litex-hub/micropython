@@ -36,6 +36,20 @@ jobs:
         cpu: [vexriscv]
     steps:
     - uses: actions/checkout@v4
+    # Cache LiteX install (~/.local from `pip --user`, ~/litex from
+    # `litex_setup.py --init`). Cold install is ~3 min; cached restore
+    # is ~5 s. Key includes ci.sh so the cache invalidates whenever we
+    # change what gets installed.
+    - name: Cache LiteX install
+      id: cache-litex
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.local
+          ~/litex
+        key: litex-install-${{ runner.os }}-${{ hashFiles('tools/ci.sh', '.github/workflows/ports_litex.yml') }}
+        restore-keys: |
+          litex-install-${{ runner.os }}-
     - name: Install packages
       run: tools/ci.sh ci_litex_setup
     - name: Build firmware and run sim tests (${{ matrix.cpu }})
@@ -55,6 +69,16 @@ jobs:
         board: [digilent_arty]
     steps:
     - uses: actions/checkout@v4
+    - name: Cache LiteX install
+      id: cache-litex
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.local
+          ~/litex
+        key: litex-install-${{ runner.os }}-${{ hashFiles('tools/ci.sh', '.github/workflows/ports_litex.yml') }}
+        restore-keys: |
+          litex-install-${{ runner.os }}-
     - name: Install packages
       run: tools/ci.sh ci_litex_setup
     - name: Build firmware for ${{ matrix.board }}
