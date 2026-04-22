@@ -39,7 +39,7 @@ import sys
 import types
 
 
-def patched_module(sys_clk_freq_hz, skip_bios_boot):
+def patched_module(sys_clk_freq_hz, skip_bios_boot, with_uart1):
     spec = importlib.util.find_spec("litex.tools.litex_sim")
     src = open(spec.origin).read()
 
@@ -82,6 +82,31 @@ def patched_module(sys_clk_freq_hz, skip_bios_boot):
                     f'#self.add_config("{flag}") to uncomment'
                 )
 
+    if with_uart1:
+        # Inject a second UART block after the main SoCCore.__init__ runs.
+        # uart_name="stub" gives us a UART with the standard CSR layout
+        # (rxtx, txfull, rxempty, ev_*) and an always-ready sink — perfect
+        # for exercising machine.UART(1) and UART.irq() in sim without
+        # needing another TCP/PTY pair on the host. Writes are silently
+        # acked; reads block (rxempty=1 always) which is exactly what
+        # machine.UART.read_nb / .any() should report.
+        injection = (
+            'SoCCore.__init__(self, platform, clk_freq=sys_clk_freq, '
+            'ident = "LiteX Simulation", **kwargs)\n        '
+            'self.add_uart(name="uart1", uart_name="stub")'
+        )
+        original = (
+            'SoCCore.__init__(self, platform, clk_freq=sys_clk_freq,\n'
+            '            ident = "LiteX Simulation",\n'
+            '            **kwargs)'
+        )
+        src, n = re.subn(re.escape(original), injection, src, count=1)
+        if n == 0:
+            raise RuntimeError(
+                "litex_sim_fast: could not find SoCCore.__init__ call to "
+                "inject the second UART after — has litex_sim been reformatted?"
+            )
+
     mod = types.ModuleType("litex.tools.litex_sim_fast")
     mod.__file__ = spec.origin
     exec(compile(src, spec.origin, "exec"), mod.__dict__)
@@ -98,9 +123,13 @@ def main():
     parser.add_argument("--sys-clk-freq", type=lambda s: int(float(s)),
                         default=100_000)
     parser.add_argument("--skip-bios-boot", action="store_true", default=False)
+    parser.add_argument("--with-uart1", action="store_true", default=False,
+                        help="Add a second 'stub' UART so machine.UART(1) "
+                             "exists in sim. CSR_UART1_BASE and "
+                             "UART1_INTERRUPT will be generated.")
     args, rest = parser.parse_known_args()
 
-    mod = patched_module(args.sys_clk_freq, args.skip_bios_boot)
+    mod = patched_module(args.sys_clk_freq, args.skip_bios_boot, args.with_uart1)
 
     # litex_sim.main() reads sys.argv directly, so trim ours.
     sys.argv = [sys.argv[0]] + rest

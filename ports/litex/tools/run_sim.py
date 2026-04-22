@@ -232,6 +232,16 @@ def spawn_sim(args):
             str(args.sys_clk_freq),
             "--skip-bios-boot",
         ]
+        # Auto-pass --with-uart1 if the firmware's csr.h has CSR_UART1_BASE.
+        # litex_sim regenerates the SoC on every launch, so we need to feed
+        # the same SoC topology in or the sim's CSR layout won't match what
+        # the firmware was compiled against.
+        with_uart1 = args.with_uart1
+        csr_h = Path(args.output_dir) / "software" / "include" / "generated" / "csr.h"
+        if not with_uart1 and csr_h.is_file():
+            with_uart1 = "CSR_UART1_BASE" in csr_h.read_text()
+        if with_uart1:
+            cmd.append("--with-uart1")
     else:
         cmd = [sys.executable, "-m", "litex.tools.litex_sim"]
     cmd += [
@@ -383,6 +393,15 @@ def main():
         "Lower values make every sim-time delay (BIOS timeouts, "
         "mp_hal_delay_ms, time.sleep) faster in wall-clock; the actual "
         "Verilator step rate is unchanged.",
+    )
+    parser.add_argument(
+        "--with-uart1",
+        action="store_true",
+        default=False,
+        help="With --fast-sim, inject a second 'stub' UART into the SoC so "
+        "machine.UART(1) and machine.UART(1).irq() are exercisable in sim. "
+        "The UART has the standard CSR layout but no actual host-side "
+        "endpoint — reads always block (rxempty=1).",
     )
     parser.add_argument(
         "--log",
