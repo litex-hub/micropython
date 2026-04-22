@@ -33,7 +33,7 @@ extern const mp_obj_type_t litex_video_type;
 
 // litex.read32(addr) / litex.write32(addr, value) — raw MMIO. Thin wrappers
 // over machine.mem32[addr], but named to make CSR bring-up scripts readable:
-//     litex.write32(litex.CSR_BASE + 0x0, 0xdeadbeef)
+//     litex.write32(litex.CSR_BASE() + 0x0, 0xdeadbeef)
 // Addresses are not range-checked: users poke real hardware here.
 static mp_obj_t litex_read32(mp_obj_t addr_obj) {
     uint32_t addr = mp_obj_get_int_truncated(addr_obj);
@@ -61,6 +61,39 @@ static mp_obj_t litex_bus_standard(void) {
     return mp_obj_new_str(CONFIG_BUS_STANDARD, strlen(CONFIG_BUS_STANDARD));
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(litex_bus_standard_obj, litex_bus_standard);
+
+// Address-and-size constants exposed as zero-arg functions because the
+// values (e.g. CSR_BASE = 0xF0000000) overflow MP_SMALL_INT on 32-bit
+// builds and can't be stored as MP_ROM_INT in the static module dict.
+// mp_obj_new_int_from_uint allocates an mpz when needed.
+static mp_obj_t litex_csr_base(void) {
+    return mp_obj_new_int_from_uint(CSR_BASE);
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(litex_csr_base_obj, litex_csr_base);
+
+#ifdef MAIN_RAM_BASE
+static mp_obj_t litex_main_ram_base(void) {
+    return mp_obj_new_int_from_uint(MAIN_RAM_BASE);
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(litex_main_ram_base_obj, litex_main_ram_base);
+
+static mp_obj_t litex_main_ram_size(void) {
+    return mp_obj_new_int_from_uint(MAIN_RAM_SIZE);
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(litex_main_ram_size_obj, litex_main_ram_size);
+#endif
+
+#ifdef ROM_BASE
+static mp_obj_t litex_rom_base(void) {
+    return mp_obj_new_int_from_uint(ROM_BASE);
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(litex_rom_base_obj, litex_rom_base);
+
+static mp_obj_t litex_rom_size(void) {
+    return mp_obj_new_int_from_uint(ROM_SIZE);
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(litex_rom_size_obj, litex_rom_size);
+#endif
 
 // Look up a CSR by name in the build-time table. Returns NULL if the name
 // isn't in the SoC, otherwise a pointer into litex_csr_table[].
@@ -439,15 +472,19 @@ static const mp_rom_map_elem_t litex_module_globals_table[] = {
     // CSR triple, resolved through the build-time lookup table.
     { MP_ROM_QSTR(MP_QSTR_EventManager),  MP_ROM_PTR(&litex_event_manager_type) },
 
-    // Base addresses from the LiteX generation.
-    { MP_ROM_QSTR(MP_QSTR_CSR_BASE),      MP_ROM_INT(CSR_BASE) },
+    // Base addresses from the LiteX generation. Exposed as zero-arg
+    // callables because their values overflow MP_SMALL_INT on 32-bit
+    // builds (e.g. CSR_BASE = 0xF0000000 stored as a small int would
+    // wrap to a negative number — see git_sha1/bus_standard for the
+    // same trick).
+    { MP_ROM_QSTR(MP_QSTR_CSR_BASE),      MP_ROM_PTR(&litex_csr_base_obj) },
     #ifdef MAIN_RAM_BASE
-    { MP_ROM_QSTR(MP_QSTR_MAIN_RAM_BASE), MP_ROM_INT(MAIN_RAM_BASE) },
-    { MP_ROM_QSTR(MP_QSTR_MAIN_RAM_SIZE), MP_ROM_INT(MAIN_RAM_SIZE) },
+    { MP_ROM_QSTR(MP_QSTR_MAIN_RAM_BASE), MP_ROM_PTR(&litex_main_ram_base_obj) },
+    { MP_ROM_QSTR(MP_QSTR_MAIN_RAM_SIZE), MP_ROM_PTR(&litex_main_ram_size_obj) },
     #endif
     #ifdef ROM_BASE
-    { MP_ROM_QSTR(MP_QSTR_ROM_BASE),      MP_ROM_INT(ROM_BASE) },
-    { MP_ROM_QSTR(MP_QSTR_ROM_SIZE),      MP_ROM_INT(ROM_SIZE) },
+    { MP_ROM_QSTR(MP_QSTR_ROM_BASE),      MP_ROM_PTR(&litex_rom_base_obj) },
+    { MP_ROM_QSTR(MP_QSTR_ROM_SIZE),      MP_ROM_PTR(&litex_rom_size_obj) },
     #endif
 
     // Peripheral types (gated by the corresponding CSR so `litex.Video`
