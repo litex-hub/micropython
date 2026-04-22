@@ -350,6 +350,7 @@ function ci_nrf_build {
 # ports/litex
 
 function ci_litex_setup {
+    set -x
     # Verilator + socat + json-c are tiny apt installs and don't survive
     # an actions/cache restore (they live in /usr), so always install them.
     ci_gcc_riscv_setup
@@ -357,7 +358,11 @@ function ci_litex_setup {
         verilator \
         socat \
         libevent-dev \
-        libjson-c-dev
+        libjson-c-dev \
+        meson \
+        ninja-build \
+        wget \
+        python3-pip
     # litex_setup.py clones LiteX + LiteX-Boards + cores into ~/litex and
     # pip-installs them into the user site (~/.local). Both directories
     # are cached by the workflow's actions/cache step, so on a warm
@@ -384,6 +389,7 @@ function ci_litex_setup {
 }
 
 function ci_litex_build_sim {
+    set -x
     # Usage: ci_litex_build_sim <cpu> [variant]
     # variant defaults to "base"; pass "ethernet" to also enable LiteEth.
     local cpu=${1:-vexriscv}
@@ -427,6 +433,7 @@ function ci_litex_build_sim {
 }
 
 function ci_litex_build_board {
+    set -x
     # Usage: ci_litex_build_board <board>
     # Generates the board's SoC headers via litex_boards (no FPGA toolchain
     # required) and builds MicroPython firmware against them. Flashing is
