@@ -25,8 +25,14 @@ extern const mp_obj_type_t machine_timer_type;
 extern const mp_obj_type_t machine_uart_type;
 #define LITEX_HAS_SECONDARY_UART 1
 #endif
-#ifdef CSR_XADC_TEMPERATURE_ADDR
+// machine_adc.c gates itself on every known LiteX ADC core's CSR; mirror
+// the same composite condition here so the type is exposed iff one of those
+// cores is present.
+#if defined(CSR_XADC_TEMPERATURE_ADDR) \
+    || defined(CSR_SYSMON_TEMPERATURE_ADDR) \
+    || defined(CSR_LITEADC_DATA_ADDR)
 extern const mp_obj_type_t machine_adc_type;
+#define LITEX_HAS_ADC 1
 #endif
 #ifdef CSR_LEDS_PWM_ENABLE_ADDR
 extern const mp_obj_type_t machine_pwm_type;
@@ -87,7 +93,7 @@ static MP_DEFINE_CONST_FUN_OBJ_0(machine_freq_obj, machine_freq);
 #define MACHINE_UART_ENTRY
 #endif
 
-#ifdef CSR_XADC_TEMPERATURE_ADDR
+#ifdef LITEX_HAS_ADC
 #define MACHINE_ADC_ENTRY \
     { MP_ROM_QSTR(MP_QSTR_ADC), MP_ROM_PTR(&machine_adc_type) },
 #else

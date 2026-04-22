@@ -1,23 +1,30 @@
 // Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
 // License: BSD-2-Clause
 //
-// machine.ADC(channel) — wraps the LiteX Xilinx XADC core when present.
+// machine.ADC — generic ADC wrapper, portable across LiteX ADC cores.
 //
-// The XADC block (litex.soc.cores.xadc) exposes four standard system-monitor
-// channels as CSRs:
+// LiteX ships several ADC-flavoured cores that all reduce to "read a CSR to
+// get an N-bit raw sample":
 //
-//     0 = temperature    (12-bit raw, °C = value * 503.975 / 4096 - 273.15)
-//     1 = vccint         (12-bit raw, V  = value * 3 / 4096)
-//     2 = vccaux         (12-bit raw, V  = value * 3 / 4096)
-//     3 = vccbram        (12-bit raw, V  = value * 3 / 4096)
+//     * Xilinx 7-Series XADC          (xadc_temperature, _vccint, ...)
+//     * Xilinx UltraScale SysMon      (sysmon_temperature, ...)
+//     * LiteADC user analog channels  (liteadc_data, ...)
+//     * Custom user CSR-mapped ADCs   (any 12/16-bit RO CSR)
 //
-// Symbolic aliases (machine.ADC("temperature"), ...) accept any of those four
-// names in addition to numeric ids. read_u16() returns the 12-bit XADC
-// reading shifted left 4 bits so the result spans the full 16-bit range, to
-// match upstream's ADC convention.
+// Rather than hard-code knowledge of each core, machine.ADC accepts the
+// CSR name directly and resolves it through the build-time CSR lookup
+// table. Numeric ids and a small set of well-known symbolic aliases are
+// kept as syntactic sugar for the common XADC / SysMon channels.
 //
-// This module is gated on CSR_XADC_TEMPERATURE_ADDR; SoCs without XADC
-// simply don't see machine.ADC in the machine module.
+//     >>> import machine
+//     >>> a = machine.ADC('xadc_temperature')   # any LiteX ADC CSR
+//     >>> a = machine.ADC('temperature')        # XADC alias (if present)
+//     >>> a = machine.ADC(0)                    # XADC channel 0
+//     >>> a = machine.ADC('myadc_value', bits=10)
+//
+// read() returns the raw N-bit sample. read_u16() shifts so the result
+// spans the full 0..65535 range, matching machine.ADC on every other
+// MicroPython port.
 
 #include <stdint.h>
 #include <string.h>
@@ -28,95 +35,168 @@
 
 #include <generated/csr.h>
 
-#ifdef CSR_XADC_TEMPERATURE_ADDR
+// We need the CSR lookup for name -> address resolution. The table itself
+// lives in modlitex.c; expose just the lookup helper here.
+#include "genhdr/litex_csr_table.h"
+extern const litex_csr_entry_t *litex_csr_lookup(const char *name);
+
+// At least one ADC core is present if any of these well-known CSRs exist.
+// Without that, machine.ADC isn't built (and isn't exposed on the machine
+// module by modmachine.c).
+#if defined(CSR_XADC_TEMPERATURE_ADDR) \
+    || defined(CSR_SYSMON_TEMPERATURE_ADDR) \
+    || defined(CSR_LITEADC_DATA_ADDR)
+#define LITEX_HAS_ADC 1
+#endif
+
+#ifdef LITEX_HAS_ADC
 
 typedef struct _machine_adc_obj_t {
     mp_obj_base_t base;
     uint32_t csr_addr;
-    const char *name;
-    uint8_t id;
+    uint16_t bits;          // sample width in bits, e.g. 12 for XADC
+    uint16_t shift;         // (16 - bits), pre-computed for read_u16
 } machine_adc_obj_t;
 
-static const machine_adc_obj_t machine_adc_channels[] = {
-    { { NULL }, CSR_XADC_TEMPERATURE_ADDR, "temperature", 0 },
+// Symbolic aliases. Each maps a short name (or numeric id) to a CSR name
+// that the lookup table will resolve to an address. Aliases are bundled
+// per-core; a SoC built with XADC sees the XADC names, etc.
+typedef struct {
+    const char *alias;      // user-facing name (NULL = match by id)
+    int id;                 // numeric id, or -1 for name-only entries
+    const char *csr_name;   // CSR to read
+    uint16_t bits;          // sample width
+} machine_adc_alias_t;
+
+static const machine_adc_alias_t machine_adc_aliases[] = {
+    #ifdef CSR_XADC_TEMPERATURE_ADDR
+    { "temperature", 0, "xadc_temperature", 12 },
+    #endif
     #ifdef CSR_XADC_VCCINT_ADDR
-    { { NULL }, CSR_XADC_VCCINT_ADDR,      "vccint",      1 },
+    { "vccint",      1, "xadc_vccint",      12 },
     #endif
     #ifdef CSR_XADC_VCCAUX_ADDR
-    { { NULL }, CSR_XADC_VCCAUX_ADDR,      "vccaux",      2 },
+    { "vccaux",      2, "xadc_vccaux",      12 },
     #endif
     #ifdef CSR_XADC_VCCBRAM_ADDR
-    { { NULL }, CSR_XADC_VCCBRAM_ADDR,     "vccbram",     3 },
+    { "vccbram",     3, "xadc_vccbram",     12 },
     #endif
+    #ifdef CSR_SYSMON_TEMPERATURE_ADDR
+    { "temperature", 0, "sysmon_temperature", 12 },
+    #endif
+    #ifdef CSR_SYSMON_VCCINT_ADDR
+    { "vccint",      1, "sysmon_vccint",      12 },
+    #endif
+    #ifdef CSR_SYSMON_VCCAUX_ADDR
+    { "vccaux",      2, "sysmon_vccaux",      12 },
+    #endif
+    // LiteADC-style cores are usually multi-channel; the CSR name is just
+    // "<core>_data" with a separate channel-select CSR. We can't model that
+    // here without knowing the core's API, so users instantiate
+    // machine.ADC('liteadc_data', bits=N) directly.
+    { NULL, -1, NULL, 0 },  // sentinel
 };
-#define MACHINE_ADC_COUNT \
-    (sizeof(machine_adc_channels) / sizeof(machine_adc_channels[0]))
+
+static const machine_adc_alias_t *machine_adc_resolve_alias(mp_obj_t arg) {
+    if (mp_obj_is_str(arg)) {
+        const char *name = mp_obj_str_get_str(arg);
+        for (const machine_adc_alias_t *a = machine_adc_aliases; a->csr_name; a++) {
+            if (a->alias && strcmp(a->alias, name) == 0) {
+                return a;
+            }
+        }
+    } else {
+        int id = mp_obj_get_int(arg);
+        for (const machine_adc_alias_t *a = machine_adc_aliases; a->csr_name; a++) {
+            if (a->id == id) {
+                return a;
+            }
+        }
+    }
+    return NULL;
+}
+
+enum { ARG_id, ARG_bits };
+static const mp_arg_t machine_adc_init_args[] = {
+    { MP_QSTR_id,   MP_ARG_OBJ | MP_ARG_REQUIRED, {.u_obj = MP_OBJ_NULL} },
+    { MP_QSTR_bits, MP_ARG_KW_ONLY | MP_ARG_INT,  {.u_int = 12} },
+};
+
+static mp_obj_t machine_adc_make_new(const mp_obj_type_t *type, size_t n_args,
+                                     size_t n_kw, const mp_obj_t *all_args) {
+    mp_arg_val_t args[MP_ARRAY_SIZE(machine_adc_init_args)];
+    mp_arg_parse_all_kw_array(n_args, n_kw, all_args,
+        MP_ARRAY_SIZE(machine_adc_init_args), machine_adc_init_args, args);
+
+    uint32_t csr_addr;
+    int bits;
+
+    // Symbolic alias first (covers XADC/SysMon shortcuts and numeric ids).
+    const machine_adc_alias_t *alias = machine_adc_resolve_alias(args[ARG_id].u_obj);
+    if (alias) {
+        const litex_csr_entry_t *e = litex_csr_lookup(alias->csr_name);
+        if (e == NULL) {
+            // Shouldn't happen — the alias table is gated on the same CSR
+            // macros — but be defensive.
+            mp_raise_msg_varg(&mp_type_ValueError,
+                MP_ERROR_TEXT("ADC alias '%s' resolves to missing CSR '%s'"),
+                alias->alias ? alias->alias : "?", alias->csr_name);
+        }
+        csr_addr = e->addr;
+        bits = alias->bits;
+    } else if (mp_obj_is_str(args[ARG_id].u_obj)) {
+        // Direct CSR name. Resolve via the build-time table.
+        const char *name = mp_obj_str_get_str(args[ARG_id].u_obj);
+        const litex_csr_entry_t *e = litex_csr_lookup(name);
+        if (e == NULL) {
+            mp_raise_msg_varg(&mp_type_ValueError,
+                MP_ERROR_TEXT("no CSR named '%s'"), name);
+        }
+        csr_addr = e->addr;
+        bits = args[ARG_bits].u_int;
+    } else {
+        mp_raise_ValueError(MP_ERROR_TEXT("ADC: unknown channel"));
+    }
+
+    if (bits < 1 || bits > 16) {
+        mp_raise_ValueError(MP_ERROR_TEXT("ADC bits must be in 1..16"));
+    }
+
+    machine_adc_obj_t *self = mp_obj_malloc(machine_adc_obj_t, type);
+    self->csr_addr = csr_addr;
+    self->bits = (uint16_t)bits;
+    self->shift = (uint16_t)(16 - bits);
+    return MP_OBJ_FROM_PTR(self);
+}
 
 static void machine_adc_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
     (void)kind;
     machine_adc_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    mp_printf(print, "ADC(%u, '%s')", self->id, self->name);
+    mp_printf(print, "ADC(csr=0x%08x, bits=%u)",
+        (unsigned int)self->csr_addr, self->bits);
 }
 
-static mp_obj_t machine_adc_make_new(const mp_obj_type_t *type, size_t n_args,
-                                     size_t n_kw, const mp_obj_t *args) {
-    mp_arg_check_num(n_args, n_kw, 1, 1, false);
-    const machine_adc_obj_t *picked = NULL;
-    if (mp_obj_is_str(args[0])) {
-        const char *name = mp_obj_str_get_str(args[0]);
-        for (size_t i = 0; i < MACHINE_ADC_COUNT; i++) {
-            if (strcmp(machine_adc_channels[i].name, name) == 0) {
-                picked = &machine_adc_channels[i];
-                break;
-            }
-        }
-        if (picked == NULL) {
-            mp_raise_msg_varg(&mp_type_ValueError,
-                MP_ERROR_TEXT("no XADC channel named '%s'"), name);
-        }
-    } else {
-        int id = mp_obj_get_int(args[0]);
-        for (size_t i = 0; i < MACHINE_ADC_COUNT; i++) {
-            if (machine_adc_channels[i].id == id) {
-                picked = &machine_adc_channels[i];
-                break;
-            }
-        }
-        if (picked == NULL) {
-            mp_raise_msg_varg(&mp_type_ValueError,
-                MP_ERROR_TEXT("no XADC channel with id %d"), id);
-        }
-    }
-    // We return a pointer to the const table; that's safe because
-    // machine_adc_obj_t has no mutable runtime state. The 'type' slot is
-    // filled in lazily here — the table literal can't reference
-    // machine_adc_type because it's defined below.
-    machine_adc_obj_t *out = (machine_adc_obj_t *)picked;
-    out->base.type = type;
-    return MP_OBJ_FROM_PTR(out);
-}
-
-// machine.ADC.read_u16() — 12-bit XADC reading shifted into the upper 12
-// bits of a 16-bit return so the range matches machine.ADC on other ports
-// (0..65535, full-scale = Vref).
-static mp_obj_t machine_adc_read_u16(mp_obj_t self_in) {
-    machine_adc_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    uint32_t raw12 = MMPTR(self->csr_addr) & 0xfff;
-    return MP_OBJ_NEW_SMALL_INT(raw12 << 4);
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(machine_adc_read_u16_obj, machine_adc_read_u16);
-
-// machine.ADC.read() — raw 12-bit XADC value, for callers who need the
-// unscaled number (e.g. to apply the XADC temperature formula directly).
+// machine.ADC.read() — raw N-bit sample.
 static mp_obj_t machine_adc_read(mp_obj_t self_in) {
     machine_adc_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    return MP_OBJ_NEW_SMALL_INT(MMPTR(self->csr_addr) & 0xfff);
+    uint32_t mask = (self->bits == 32) ? 0xffffffffu : ((1u << self->bits) - 1u);
+    return MP_OBJ_NEW_SMALL_INT(MMPTR(self->csr_addr) & mask);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(machine_adc_read_obj, machine_adc_read);
 
+// machine.ADC.read_u16() — left-shifted to span the 0..65535 range that
+// machine.ADC uses on every other MicroPython port.
+static mp_obj_t machine_adc_read_u16(mp_obj_t self_in) {
+    machine_adc_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    uint32_t mask = (self->bits == 32) ? 0xffffffffu : ((1u << self->bits) - 1u);
+    uint32_t raw = MMPTR(self->csr_addr) & mask;
+    return MP_OBJ_NEW_SMALL_INT((raw << self->shift) & 0xffff);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(machine_adc_read_u16_obj, machine_adc_read_u16);
+
 static const mp_rom_map_elem_t machine_adc_locals_dict_table[] = {
-    { MP_ROM_QSTR(MP_QSTR_read_u16), MP_ROM_PTR(&machine_adc_read_u16_obj) },
     { MP_ROM_QSTR(MP_QSTR_read),     MP_ROM_PTR(&machine_adc_read_obj) },
+    { MP_ROM_QSTR(MP_QSTR_read_u16), MP_ROM_PTR(&machine_adc_read_u16_obj) },
 };
 static MP_DEFINE_CONST_DICT(machine_adc_locals_dict, machine_adc_locals_dict_table);
 
@@ -129,4 +209,4 @@ MP_DEFINE_CONST_OBJ_TYPE(
     locals_dict, &machine_adc_locals_dict
     );
 
-#endif // CSR_XADC_TEMPERATURE_ADDR
+#endif // LITEX_HAS_ADC
