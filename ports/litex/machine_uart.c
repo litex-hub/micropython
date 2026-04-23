@@ -61,6 +61,13 @@ typedef struct _machine_uart_obj_t {
     uint32_t csr_base;
     int id;
     int irq_bit;        // CPU IRQ bit for this UART, -1 if no IRQ wired
+    // Timeouts (ms) for stream reads. timeout = max wait for the *first*
+    // byte; timeout_char = max wait between subsequent bytes within the
+    // same read(). Both default to 0, which is "block forever" — same
+    // as stm32 / rp2 / mimxrt. Set via the timeout=/ timeout_char=
+    // kwargs in the constructor or .init().
+    uint32_t timeout;
+    uint32_t timeout_char;
 } machine_uart_obj_t;
 
 // Compile-time UART_n_INTERRUPT may not be defined on SoC variants that
@@ -118,17 +125,24 @@ static void machine_uart_print(const mp_print_t *print, mp_obj_t self_in, mp_pri
         self->id, (unsigned int)self->csr_base);
 }
 
-enum { ARG_id, ARG_baudrate, ARG_bits, ARG_parity, ARG_stop };
+enum { ARG_id, ARG_baudrate, ARG_bits, ARG_parity, ARG_stop,
+       ARG_timeout, ARG_timeout_char };
 static const mp_arg_t machine_uart_init_args[] = {
-    { MP_QSTR_id,       MP_ARG_INT | MP_ARG_REQUIRED, {.u_int = 0} },
+    { MP_QSTR_id,           MP_ARG_INT | MP_ARG_REQUIRED, {.u_int = 0} },
     // Fixed at SoC-gen time on LiteX; accepted for API parity but checked
     // against CONFIG_CLOCK_FREQUENCY / the UART's divider if/when the SoC
     // exports it. For now, any value is accepted — a real diagnostic needs
     // the board's configured baud, which we don't have generically.
-    { MP_QSTR_baudrate, MP_ARG_KW_ONLY | MP_ARG_INT,  {.u_int = 115200} },
-    { MP_QSTR_bits,     MP_ARG_KW_ONLY | MP_ARG_INT,  {.u_int = 8} },
-    { MP_QSTR_parity,   MP_ARG_KW_ONLY | MP_ARG_OBJ,  {.u_obj = mp_const_none} },
-    { MP_QSTR_stop,     MP_ARG_KW_ONLY | MP_ARG_INT,  {.u_int = 1} },
+    { MP_QSTR_baudrate,     MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 115200} },
+    { MP_QSTR_bits,         MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 8} },
+    { MP_QSTR_parity,       MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_obj = mp_const_none} },
+    { MP_QSTR_stop,         MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 1} },
+    // Default 0 = block forever (matches stm32 / rp2 / mimxrt). Pass
+    // timeout=N to bound the wait for the first byte; pass
+    // timeout_char=N to bound the wait between consecutive bytes
+    // within the same read().
+    { MP_QSTR_timeout,      MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
+    { MP_QSTR_timeout_char, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0} },
 };
 
 static mp_obj_t machine_uart_make_new(const mp_obj_type_t *type, size_t n_args,
@@ -155,6 +169,8 @@ static mp_obj_t machine_uart_make_new(const mp_obj_type_t *type, size_t n_args,
     if (args[ARG_stop].u_int != 1) {
         mp_raise_ValueError(MP_ERROR_TEXT("LiteX UART uses 1 stop bit"));
     }
+    self->timeout = args[ARG_timeout].u_int;
+    self->timeout_char = args[ARG_timeout_char].u_int;
     // Disable UART events — we poll. (If litex.EventManager later claims
     // this UART, it re-enables what it needs.)
     uart_reg_write(self, LITEX_UART_EV_ENABLE_OFFSET, 0);
@@ -172,13 +188,31 @@ static MP_DEFINE_CONST_FUN_OBJ_1(machine_uart_any_obj, machine_uart_any);
 
 // Stream-protocol helpers. These are polling reads/writes — suitable for
 // REPL interaction but not for high-throughput DMA-style use.
+//
+// Timeout semantics (matches stm32 / rp2 / mimxrt):
+//   - self->timeout      = max ms to wait for the *first* byte
+//   - self->timeout_char = max ms to wait between consecutive bytes
+//   - 0 = wait forever (only ctrl-C breaks out via mp_event_handle_nowait)
+//   - On timeout, return the number of bytes actually received (may be 0,
+//     in which case mp_stream_read_obj surfaces it as None to Python).
 static mp_uint_t machine_uart_read(mp_obj_t self_in, void *buf_in, mp_uint_t size, int *errcode) {
     machine_uart_obj_t *self = MP_OBJ_TO_PTR(self_in);
     uint8_t *buf = buf_in;
     for (mp_uint_t i = 0; i < size; i++) {
-        // Busy-wait for a byte to arrive.
+        // Pick the right timeout for this byte: `timeout` for the first,
+        // `timeout_char` for subsequent ones. 0 means "block forever".
+        uint32_t budget = (i == 0) ? self->timeout : self->timeout_char;
+        uint32_t deadline = mp_hal_ticks_ms() + budget;
         while (uart_reg_read(self, LITEX_UART_RXEMPTY_OFFSET)) {
             mp_event_handle_nowait();  // keep ctrl-C responsive
+            if (budget != 0 && (int32_t)(mp_hal_ticks_ms() - deadline) >= 0) {
+                // Timed out before this byte arrived — return short.
+                if (i == 0) {
+                    *errcode = MP_EAGAIN;
+                    return MP_STREAM_ERROR;
+                }
+                return i;
+            }
         }
         buf[i] = uart_reg_read(self, LITEX_UART_RXTX_OFFSET);
         // Ack the RX event so the EventManager IRQ line drops.
