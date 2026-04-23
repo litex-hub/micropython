@@ -275,10 +275,29 @@ def main():
         # interactive `litex>` console — at that point we can issue
         # `serialboot` ourselves whenever we're ready, with no race
         # and no \r\n vs \n parsing fragility.
-        print("[run_hw] waiting for BIOS console prompt", file=sys.stderr)
-        # The console prompt is ANSI-coloured (`\x1b[92;1mlitex\x1b[0m>`),
-        # so match the bare "litex" substring instead of "litex>".
-        if read_until(s, b"litex", timeout=60, log=log) is None:
+        #
+        # Send Q periodically during the wait to abort every boot
+        # method (serial, network, SDCard, flash) — the BIOS prints
+        # "Press Q or ESC to abort boot completely." for each one,
+        # and without this the SDCard-boot path would happily run
+        # whatever boot.json we have on the card instead of dropping
+        # into the console.
+        print("[run_hw] waiting for BIOS console prompt (sending Q to abort auto-boot)",
+              file=sys.stderr)
+        deadline = time.monotonic() + 60
+        seen = b""
+        litex_prompt = b"litex"  # ANSI-wrapped, match the bare brand name
+        while time.monotonic() < deadline and litex_prompt not in seen:
+            s.write(b"Q\n")
+            s.flush()
+            chunk = read_until(s, [litex_prompt, b"booted program"],
+                               timeout=2, log=log)
+            if chunk:
+                seen += chunk
+                if b"booted program" in chunk:
+                    sys.exit("[run_hw] board started executing a SDCard/network "
+                             "boot.json before we could abort — remove it and retry")
+        if litex_prompt not in seen:
             sys.exit("[run_hw] BIOS console prompt not seen — bitstream loaded?")
         # Tiny pause so the prompt's `>` byte arrives before we type.
         time.sleep(0.2)

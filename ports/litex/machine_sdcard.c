@@ -273,11 +273,10 @@ static mp_obj_t machine_sdcard_make_new(const mp_obj_type_t *type, size_t n_args
 
     DEBUG_printf("  Setting up host configuration");
 
-    sdcard_card_obj_t *self = m_new_obj_with_finaliser(sdcard_card_obj_t);
-    if (!self) {
-        return NULL;
-    }
-    self->base.type = &machine_sdcard_type;
+    // Modern API replaces the old m_new_obj_with_finaliser + manual
+    // base.type assignment with a single allocator call.
+    sdcard_card_obj_t *self = mp_obj_malloc_with_finaliser(
+        sdcard_card_obj_t, &machine_sdcard_type);
     self->flags = 0;
     self->card = -1;
 
@@ -469,17 +468,17 @@ static mp_obj_t machine_sdcard_ioctl(mp_obj_t self_in, mp_obj_t cmd_in, mp_obj_t
             // nothing to do
             return MP_OBJ_NEW_SMALL_INT(0); // success
 
-        #ifdef ESP32
         case MP_BLOCKDEV_IOCTL_BLOCK_COUNT: // 4
             err = sdcard_ensure_card_init(self, false);
             if (err != ERR_NOERROR) {
                 return MP_OBJ_NEW_SMALL_INT(-1);
             }
+            #ifdef ESP32
             return MP_OBJ_NEW_SMALL_INT(self->card.csd.capacity);
-        #else
+            #else
             // this is called at disk_ioctl with parameter GET_SECTOR_COUNT in vfs_fat_diskio.c
             return MP_OBJ_NEW_SMALL_INT(sdmmc_card_num_blocks());
-        #endif
+            #endif
 
         case MP_BLOCKDEV_IOCTL_BLOCK_SIZE: // 5
             err = sdcard_ensure_card_init(self, false);
@@ -501,7 +500,7 @@ static void machine_sdcard_print(const mp_print_t *print, mp_obj_t self_in, mp_p
     #ifdef CSR_SPISDCARD_BASE
     mp_printf(print, "SDCard %p(%d) (SPI mode)", self, self->card);
     #else
-    uint32_t divider = sdphy_clocker_divider_read();
+    uint32_t divider = sdcard_phy_clocker_divider_read();
     // printf("divider %d", divider);
     mp_printf(print, "SDCard %p(%d) (full width mode & DMA, bus frequency %d KHz)", self, self->card,
         CONFIG_CLOCK_FREQUENCY / (divider * 1000));

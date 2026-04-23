@@ -7,6 +7,8 @@
 // Python internal features.
 #define MICROPY_ENABLE_COMPILER     (1)
 #define MICROPY_ENABLE_GC           (1)
+// Required by extmod/vfs_fat.c for finaliser-on-close semantics.
+#define MICROPY_ENABLE_FINALISER    (1)
 #define MICROPY_HELPER_REPL         (1)
 #define MICROPY_ERROR_REPORTING     (MICROPY_ERROR_REPORTING_TERSE)
 #define MICROPY_LONGINT_IMPL        (MICROPY_LONGINT_IMPL_MPZ)
@@ -134,10 +136,9 @@ typedef long mp_off_t;
 #define mp_type_textio mp_type_vfs_fat_textio
 #define MICROPY_FATFS_EXFAT         (1)
 #define MICROPY_FATFS_ENABLE_LFN    (1)
-// use vfs's functions for import stat and builtin open
-#define mp_import_stat mp_vfs_import_stat
-#define mp_builtin_open mp_vfs_open
-#define mp_builtin_open_obj mp_vfs_open_obj
+// py/builtin.h already wires mp_import_stat / mp_builtin_open
+// through to the VFS layer when MICROPY_VFS is enabled — no manual
+// macro forwarding needed.
 #endif
 #define MICROPY_READER_VFS              (MICROPY_VFS_FAT)
 
