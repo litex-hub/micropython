@@ -6,12 +6,12 @@
 
 #include <generated/csr.h>
 
-#define LITEX_SDCARD_BOOT_ENABLED //allow disabling boot from SD card to make boot image smaller
+#define LITEX_SDCARD_BOOT_ENABLED // allow disabling boot from SD card to make boot image smaller
 
 
-#define CLKGEN_STATUS_BUSY		0x1
-#define CLKGEN_STATUS_PROGDONE	0x2
-#define CLKGEN_STATUS_LOCKED	0x4
+#define CLKGEN_STATUS_BUSY              0x1
+#define CLKGEN_STATUS_PROGDONE  0x2
+#define CLKGEN_STATUS_LOCKED    0x4
 
 #ifdef CSR_SDCORE_BASE
 
@@ -104,8 +104,8 @@ void sdcard_decode_csd(void);
 /*-----------------------------------------------------------------------*/
 
 int sdcard_init(void);
-void sdcard_read(uint32_t sector, uint32_t count, uint8_t* buf);
-void sdcard_write(uint32_t sector, uint32_t count, const uint8_t* buf);
+void sdcard_read(uint32_t sector, uint32_t count, uint8_t *buf);
+void sdcard_write(uint32_t sector, uint32_t count, const uint8_t *buf);
 uint32_t sdcard_numblocks(void);
 void fatfs_set_ops_sdcard(void);
 

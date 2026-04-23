@@ -12,7 +12,7 @@
 
 #define LITEX_PACKED32 __attribute__((packed, aligned(4)))
 
-// general defitions and helpers for CSR access
+// general definitions and helpers for CSR access
 
 #include <stdint.h>
 #include <generated/csr.h>
@@ -20,7 +20,7 @@ typedef int litepheripheral_id;
 
 typedef volatile uint32_t csr1word_t; // one 32-bit word (NOTE: MEMORY MAPPED IO NEEDS VOLATILE QUALIFIER)
 typedef volatile uint64_t csr2word_t; // two 32-bit words (NOTE: MEMORY MAPPED IO NEEDS VOLATILE QUALIFIER)
-#define LITECSR_T(s) csr##s##word_t     // macro for selecting 64-bit or 32-bit registers based on size defintions in csr.h
+#define LITECSR_T(s) csr##s##word_t     // macro for selecting 64-bit or 32-bit registers based on size definitions in csr.h
 #define LITECSR(s) LITECSR_T(s) // indirect use does macro expansion prior to concatenation
 
 static inline csr2word_t csr_swap_words(csr2word_t x) {

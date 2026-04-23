@@ -17,7 +17,7 @@
 //     base + 0x1c  rxfull
 //
 // LiteX UART baud rate and number of data bits are baked in at SoC
-// generation time and cannot be retuned at runtime. The `baudrate` kwarg
+// generation time and cannot be returned at runtime. The `baudrate` kwarg
 // is accepted (for pyboard-style compatibility) but must match the SoC's
 // configured rate or an error is raised.
 
