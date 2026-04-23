@@ -462,7 +462,14 @@ function ci_litex_examples_lint {
     #     this exact bug, so syntax + ruff alone aren't enough — we
     #     also import-check via a list of MicroPython-only stdlibs
     #     and fail loudly if a *.py reaches for something not on it).
-    pip3 install --user ruff==0.11.6
+    # Ubuntu 24.04 runners are PEP 668 "externally-managed", so a plain
+    # `pip3 install --user` fails. Use pipx to get a clean isolated venv
+    # (mirrors what .github/workflows/ruff.yml does for the whole-repo
+    # ruff pass). pipx itself is pre-installed on the GitHub runner.
+    pipx install ruff==0.11.6
+    # pipx drops the ruff binary into ~/.local/bin which may not be on
+    # PATH for a fresh shell — source the recommended PATH line.
+    export PATH="$HOME/.local/bin:$PATH"
     ruff check ports/litex/examples ports/litex/test
     ruff format --diff ports/litex/examples ports/litex/test
     python3 -c "
