@@ -291,6 +291,58 @@ Without the tap, `network.LAN(0).active(True)` still succeeds
 (`ifconfig`/`config('mac')` return the static IP / MAC) but no packets
 flow.
 
+Hardware testing on Digilent Arty A7
+------------------------------------
+
+The Arty A7 is the reference board for this port. The full bring-up
+loop — generate SoC, synthesize bitstream, load it, transfer the
+MicroPython firmware over UART, drive tests over the same UART — is
+a single sequence of commands. Once you've installed Vivado +
+openFPGALoader you can repeat any of these steps independently.
+
+```bash
+# 0) Tools (one time):
+#    - Vivado (or yosys+nextpnr-xilinx for an open-source flow)
+#    - openFPGALoader  (https://github.com/trabucayre/openFPGALoader)
+#    - python3-pyserial (for tools/run_hw.py)
+
+# 1) Generate the SoC + synthesize the bitstream (~10–15 min on Vivado).
+#    --with-ethernet / --with-xadc / --timer-uptime turn on the cores
+#    test_hw_arty.py exercises.
+python3 -m litex_boards.targets.digilent_arty \
+    --build \
+    --with-ethernet \
+    --with-xadc \
+    --timer-uptime \
+    --cpu-type=vexriscv \
+    --libc-mode=full \
+    --output-dir=/tmp/arty_eth
+
+# 2) Build the MicroPython firmware against the same SoC.
+make -C ports/litex BUILD_DIRECTORY=/tmp/arty_eth -j$(nproc)
+
+# 3) Flash the bitstream to the Arty (volatile SRAM load — gone on
+#    power-cycle; pass `-f` to write to SPI flash for persistence).
+openFPGALoader -b arty /tmp/arty_eth/gateware/digilent_arty.bit
+
+# 4) Upload the firmware over the FTDI's UART channel and drop into
+#    the MicroPython REPL. /dev/ttyUSB1 is the default UART; ttyUSB0
+#    is the JTAG channel.
+litex_term --kernel ports/litex/build/firmware.bin /dev/ttyUSB1
+#    Once the REPL appears, ctrl-] exits litex_term and frees the
+#    serial port for run_hw.py.
+
+# 5) Drive the new functionality from the host.
+ports/litex/tools/run_hw.py ports/litex/test/test_hw_arty.py
+```
+
+`test/test_hw_arty.py` covers, end to end on real silicon: CSR
+read/write, `litex.LED` blink, XADC temperature + vccint, timer IRQ
+→ Python callback dispatch, and `network.LAN(0)` DHCP +  DNS + a
+plain HTTP GET against the LAN. The FTDI defaults match Arty's
+factory wiring; override with `LITEX_HW_PORT=/dev/ttyUSBn` for other
+serial devices.
+
 Supported hardware
 ------------------
 

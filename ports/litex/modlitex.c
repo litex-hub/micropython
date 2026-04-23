@@ -97,7 +97,7 @@ static MP_DEFINE_CONST_FUN_OBJ_0(litex_rom_size_obj, litex_rom_size);
 
 // Look up a CSR by name in the build-time table. Returns NULL if the name
 // isn't in the SoC, otherwise a pointer into litex_csr_table[].
-static const litex_csr_entry_t *litex_csr_lookup(const char *name) {
+const litex_csr_entry_t *litex_csr_lookup(const char *name) {
     // Table is sorted by name — a linear scan is fine for the ~200 CSRs a
     // typical LiteX SoC has, and simpler than dragging bsearch() in from
     // picolibc.
