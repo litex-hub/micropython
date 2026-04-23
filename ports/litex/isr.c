@@ -31,6 +31,17 @@ void isr(void) {
     }
     #endif
 
+    // GPIO has a per-pin fan-out that doesn't fit the single-handler
+    // litex_isr_register model (one CPU IRQ bit, many registered pin
+    // handlers). When present, route the GPIO IRQ through its dedicated
+    // dispatcher in machine_pin.c before the generic path.
+    #if defined(GPIO_INTERRUPT) && defined(CSR_GPIO_EV_ENABLE_ADDR)
+    if (irqs & (1 << GPIO_INTERRUPT)) {
+        extern void machine_pin_isr_dispatch(void);
+        machine_pin_isr_dispatch();
+    }
+    #endif
+
     // Then dispatch any IRQ bits with a registered Python handler. The
     // dispatcher write-1-clears each peripheral's ev_pending so the IRQ
     // line drops, and schedules the handler via mp_sched_schedule for

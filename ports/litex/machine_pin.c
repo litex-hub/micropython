@@ -337,8 +337,12 @@ static const mp_rom_map_elem_t machine_pin_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_value), MP_ROM_PTR(&machine_pin_value_obj) },
     { MP_ROM_QSTR(MP_QSTR_off), MP_ROM_PTR(&machine_pin_off_obj) },
     { MP_ROM_QSTR(MP_QSTR_on), MP_ROM_PTR(&machine_pin_on_obj) },
-    #ifdef ESP32
+    #if defined(ESP32) || (defined(CSR_GPIO_EV_ENABLE_ADDR) && defined(GPIO_INTERRUPT))
     { MP_ROM_QSTR(MP_QSTR_irq), MP_ROM_PTR(&machine_pin_irq_obj) },
+    #endif
+    #if defined(CSR_GPIO_EV_ENABLE_ADDR) && defined(GPIO_INTERRUPT)
+    { MP_ROM_QSTR(MP_QSTR_IRQ_RISING),  MP_ROM_INT(LITEX_PIN_IRQ_RISING) },
+    { MP_ROM_QSTR(MP_QSTR_IRQ_FALLING), MP_ROM_INT(LITEX_PIN_IRQ_FALLING) },
     #endif
     // class constants
     { MP_ROM_QSTR(MP_QSTR_IN), MP_ROM_INT(GPIO_MODE_INPUT) },
@@ -615,5 +619,134 @@ static MP_DEFINE_CONST_OBJ_TYPE(
     call, machine_pin_irq_call,
     locals_dict, &machine_pin_irq_locals_dict
     );
+
+// ---------------------------------------------------------------------------
+// LiteX Pin.irq() — bridges LiteX GPIO's EventManager (enabled when the
+// SoC is built with with_irq=True on its GPIOIn / GPIOTristate) into
+// MicroPython's standard machine.Pin.irq(handler, trigger) API.
+//
+// LiteX GPIO IRQ model (from litex/soc/cores/gpio.py::_GPIOIRQ.add_irq):
+//   gpio_mode[n]        0 = edge-triggered, 1 = any-change (level flip)
+//   gpio_edge[n]        edge mode only; 0 = rising, 1 = falling
+//   gpio_ev_pending[n]  W1C on trigger
+//   gpio_ev_enable[n]   mask bit
+//   GPIO_INTERRUPT      single CPU IRQ bit shared by all pins
+//
+// One CPU IRQ, many pins → we maintain a per-pin Python-handler table
+// and fan out from a C dispatcher called by isr.c on every GPIO IRQ.
+//
+// Build-time gating: the mode/edge/ev_* CSRs only exist when with_irq=True
+// on the LiteX side. CSR_GPIO_EV_ENABLE_ADDR is the canonical "GPIO IRQs
+// are wired" marker; GPIO_INTERRUPT is the CPU-level IRQ number.
+//
+// NOTE (scope of this change): the code below compiles against any
+// with_irq=True GPIO SoC but was not verified on real hardware in the
+// session that added it (the Arty's stock digilent_arty target doesn't
+// expose a GPIO with IRQ). Expect to iterate the first time a user tries
+// it on a board that has one.
+#elif defined(CSR_GPIO_EV_ENABLE_ADDR) && defined(GPIO_INTERRUPT)
+
+// Trigger flags — bitmask, so (IRQ_RISING | IRQ_FALLING) == both-edges.
+#define LITEX_PIN_IRQ_RISING  0x01
+#define LITEX_PIN_IRQ_FALLING 0x02
+
+// 32 matches the static machine_pin_obj[] at the top of this file.
+#define LITEX_PIN_COUNT 32
+
+// Per-pin Python handler table. Root pointers so GC doesn't collect the
+// callables while a pin is armed.
+typedef struct _litex_pin_handler_t {
+    mp_obj_t handler;
+    mp_obj_t owner;     // Pin object passed as the single arg to the handler
+} litex_pin_handler_t;
+
+MP_REGISTER_ROOT_POINTER(litex_pin_handler_t machine_pin_handlers[LITEX_PIN_COUNT]);
+
+// Called from isr.c on every GPIO IRQ. Walks ev_pending, schedules each
+// pending pin's handler, then W1Cs all the pending bits we handled.
+void machine_pin_isr_dispatch(void) {
+    uint32_t pending = gpio_ev_pending_read();
+    if (pending == 0) {
+        return;
+    }
+    for (int i = 0; i < LITEX_PIN_COUNT; i++) {
+        if (!(pending & (1u << i))) {
+            continue;
+        }
+        mp_obj_t h = MP_STATE_PORT(machine_pin_handlers)[i].handler;
+        if (h != MP_OBJ_NULL && h != mp_const_none) {
+            mp_sched_schedule(h, MP_STATE_PORT(machine_pin_handlers)[i].owner);
+        }
+    }
+    // W1C every bit we just processed so the IRQ line drops.
+    gpio_ev_pending_write(pending);
+}
+
+static mp_obj_t machine_pin_irq_litex(size_t n_args, const mp_obj_t *pos_args,
+    mp_map_t *kw_args) {
+    enum { ARG_handler, ARG_trigger };
+    static const mp_arg_t allowed_args[] = {
+        { MP_QSTR_handler, MP_ARG_OBJ, {.u_obj = mp_const_none} },
+        { MP_QSTR_trigger, MP_ARG_INT,
+          {.u_int = LITEX_PIN_IRQ_RISING | LITEX_PIN_IRQ_FALLING} },
+    };
+    machine_pin_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
+    if ((uint32_t)self->id >= LITEX_PIN_COUNT) {
+        mp_raise_ValueError(MP_ERROR_TEXT("pin id out of range for IRQ table"));
+    }
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all(n_args - 1, pos_args + 1, kw_args,
+        MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
+    mp_obj_t handler = args[ARG_handler].u_obj;
+    uint32_t trigger = args[ARG_trigger].u_int;
+    uint32_t bit = 1u << self->id;
+
+    // Mask this pin's event while we rewrite config so we don't race a
+    // transition between the mode/edge change and the ev_enable flip.
+    gpio_ev_enable_write(gpio_ev_enable_read() & ~bit);
+
+    if (handler == mp_const_none) {
+        MP_STATE_PORT(machine_pin_handlers)[self->id].handler = MP_OBJ_NULL;
+        MP_STATE_PORT(machine_pin_handlers)[self->id].owner   = MP_OBJ_NULL;
+        return mp_const_none;
+    }
+
+    // Decode trigger → (mode, edge) bits in the shared gpio_mode / gpio_edge
+    // registers. Both-edges is the "change" mode; single-edge modes use
+    // mode=0 and select the polarity via edge.
+    uint32_t mode_bits = gpio_mode_read();
+    uint32_t edge_bits = gpio_edge_read();
+    if ((trigger & (LITEX_PIN_IRQ_RISING | LITEX_PIN_IRQ_FALLING))
+        == (LITEX_PIN_IRQ_RISING | LITEX_PIN_IRQ_FALLING)) {
+        mode_bits |= bit;                       // any-change
+    } else if (trigger & LITEX_PIN_IRQ_FALLING) {
+        mode_bits &= ~bit;
+        edge_bits |= bit;                       // falling-only
+    } else if (trigger & LITEX_PIN_IRQ_RISING) {
+        mode_bits &= ~bit;
+        edge_bits &= ~bit;                      // rising-only
+    } else {
+        mp_raise_ValueError(MP_ERROR_TEXT("trigger must include IRQ_RISING and/or IRQ_FALLING"));
+    }
+    gpio_mode_write(mode_bits);
+    gpio_edge_write(edge_bits);
+
+    MP_STATE_PORT(machine_pin_handlers)[self->id].handler = handler;
+    MP_STATE_PORT(machine_pin_handlers)[self->id].owner   = pos_args[0];
+
+    // Clear any stale pending, then unmask.
+    gpio_ev_pending_write(bit);
+    gpio_ev_enable_write(gpio_ev_enable_read() | bit);
+
+    // Make sure the CPU-level GPIO IRQ is unmasked too (harmless if
+    // already on; idempotent).
+    #ifdef CONFIG_CPU_HAS_INTERRUPT
+    irq_setmask(irq_getmask() | (1u << GPIO_INTERRUPT));
+    #endif
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(machine_pin_irq_obj, 1, machine_pin_irq_litex);
+
 #endif
 #endif // CSR_GPIO_BASE
