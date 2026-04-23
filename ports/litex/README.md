@@ -132,9 +132,18 @@ Arty A7** section below for what each test covers and the per-step
 shortcuts (skip `--bitstream` once the FPGA is loaded, skip
 `--firmware` once the REPL is up).
 
-For other boards, swap the LiteX-Boards target on step 1 and pick the
-peripheral flags your hardware exposes — the firmware build (step 2)
-and `run_hw.py` (step 3) are board-agnostic.
+For other boards, browse [LiteX-Boards](https://github.com/litex-hub/litex-boards)
+— it ships ready-to-go targets for 150+ FPGA dev boards (Lattice ECP5,
+Xilinx Spartan/Artix/Kintex/Zynq, Intel Cyclone, Gowin, Microchip
+PolarFire, …). Swap the target on step 1 (`litex_boards.targets.<board>`)
+and pick the peripheral flags your hardware exposes (`--with-ethernet`,
+`--with-sdcard --sdcard-adapter=…`, etc.; each target's `--help`
+lists what's available). Steps 2 and 3 are board-agnostic.
+
+Most examples under `examples/` work as-is on any board that has the
+right peripherals enabled; pin numbers in the SoftSPI / SoftI2C demos
+(`i2c_adxl345.py`, `spi_eeprom93c46.py`, …) usually only need a
+one-line tweak to match your board's pinout.
 
 If you'd rather upload firmware manually (e.g. you don't want to run
 the full test loop), `litex_term /dev/ttyUSBX --kernel=ports/litex/build/firmware.bin`
@@ -465,14 +474,32 @@ that core enabled:
 | `network.LAN`           | `CSR_ETHMAC_BASE` (`--with-ethernet`) | `network_lan.c` + `liteeth_netif.c` |
 
 **Boards** — any [LiteX-Boards](https://github.com/litex-hub/litex-boards)
-target works once you generate it with `--build`. The port is
-specifically exercised on:
+target works once you generate it with `--build`. That repo currently
+ships **150+ ready-to-go targets** spanning Lattice ECP5/iCE40, Xilinx
+Spartan/Artix/Kintex/Zynq/UltraScale, Intel Cyclone, Gowin, Microchip
+PolarFire and more — each as a one-file Python module under
+`litex_boards/targets/`. The build flow shown above is identical for
+every one of them; only the target module name changes:
+
+```bash
+# Same recipe as the Quick Start, just point at a different board:
+python3 -m litex_boards.targets.colorlight_5a_75b --build --with-ethernet …
+python3 -m litex_boards.targets.terasic_de10nano  --build …
+python3 -m litex_boards.targets.qmtech_xc7a35t    --build …
+# … and 150+ more
+```
+
+The port is specifically exercised on:
 
 | Board            | LiteX-Boards target                | Notes                  |
 | ---------------- | ---------------------------------- | ---------------------- |
-| Digilent Arty A7 | `litex_boards.targets.digilent_arty` | Reference target; CI build. |
+| Digilent Arty A7 | `litex_boards.targets.digilent_arty` | Reference target; full CI build + hardware test loop. |
 | Terasic DE0-Nano | `litex_boards.targets.terasic_de0nano` | No DRAM; firmware fits in SRAM only with care. |
 | LiteX Sim        | `litex.tools.litex_sim`            | Verilator; used for CI. |
+
+PRs adding more board entries here (with notes on which features are
+known to work) are very welcome — see "Adding a new peripheral"
+below for the same pattern as cores.
 
 Architecture
 ------------
