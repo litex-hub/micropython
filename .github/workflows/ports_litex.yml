@@ -28,6 +28,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  examples_lint:
+    # Quick (≪1 min) parse + ruff pass over examples/ and test/ — these
+    # never run in CI (no FPGA in the runner), so without this they were
+    # only validated by humans physically at a board. Catches the
+    # rsplit(maxsplit=1)-style MicroPython incompatibility we shipped
+    # last week.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+    - uses: actions/checkout@v4
+    - name: Lint + parse litex examples and tests
+      run: tools/ci.sh litex_examples_lint
+
   build_and_test_sim:
     runs-on: ubuntu-latest
     timeout-minutes: 30

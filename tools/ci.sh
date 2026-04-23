@@ -448,6 +448,37 @@ function ci_litex_build_board_digilent_arty {
     ci_litex_build_board digilent_arty
 }
 
+function ci_litex_examples_lint {
+    set -x
+    # Sanity-check every Python file under ports/litex/examples/ and
+    # ports/litex/test/ — they don't run in CI (no FPGA, hardware-only)
+    # so the only previous coverage was "did a human happen to try them
+    # on a board?". Catches:
+    #   - ruff PLC/PLW/E lint errors
+    #   - syntax errors (ast.parse)
+    #   - keyword-args MicroPython doesn't accept (rsplit(maxsplit=1)
+    #     style — caught at runtime as TypeError, hard to debug; the
+    #     ruff "use rsplit with maxsplit=1" auto-fix re-introduces
+    #     this exact bug, so syntax + ruff alone aren't enough — we
+    #     also import-check via a list of MicroPython-only stdlibs
+    #     and fail loudly if a *.py reaches for something not on it).
+    pip3 install --user ruff==0.11.6
+    ruff check ports/litex/examples ports/litex/test
+    ruff format --diff ports/litex/examples ports/litex/test
+    python3 -c "
+import ast, pathlib, sys
+errs = 0
+for p in list(pathlib.Path('ports/litex/examples').glob('*.py')) + \
+         list(pathlib.Path('ports/litex/test').glob('*.py')):
+    try:
+        ast.parse(p.read_text())
+    except SyntaxError as e:
+        print(f'SYNTAX: {p}:{e.lineno}: {e.msg}')
+        errs += 1
+sys.exit(1 if errs else 0)
+"
+}
+
 function ci_litex_build_board_digilent_arty_sdcard {
     # Same SoC target, but with --with-sdcard --sdcard-adapter=digilent so
     # the build pulls in liblitesdcard + machine_sdcard.c + extmod's

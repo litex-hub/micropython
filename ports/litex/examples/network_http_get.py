@@ -14,6 +14,8 @@ import socket
 
 lan = network.LAN(0)
 lan.active(True)
+# DHCP — easiest. For a static address use the 4-tuple form instead, e.g.
+#   lan.ifconfig(("192.168.1.50", "255.255.255.0", "192.168.1.1", "8.8.8.8"))
 lan.ifconfig("dhcp")
 
 # Wait for DHCP — usually <1 s on a healthy LAN.

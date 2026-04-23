@@ -119,8 +119,15 @@ static MP_DEFINE_CONST_FUN_OBJ_0(litex_machine_freq_obj, litex_machine_freq);
 #define MACHINE_SDCARD_ENTRY
 #endif
 
+// machine.unique_id() is the upstream-standard MicroPython API for
+// "give me a bytes object identifying this hardware". On LiteX SoCs the
+// natural source is the IDENTIFIER_MEM CSR ROM (built-in serial-no /
+// build-tag string), so we expose the same bytes under both the
+// LiteX-historical name (machine.identifier()) and the upstream-standard
+// one (machine.unique_id()) — same C function, two QSTRs.
 #define MICROPY_PY_MACHINE_EXTRA_GLOBALS \
     { MP_ROM_QSTR(MP_QSTR_identifier), MP_ROM_PTR(&machine_identifier_obj) }, \
+    { MP_ROM_QSTR(MP_QSTR_unique_id),  MP_ROM_PTR(&machine_identifier_obj) }, \
     { MP_ROM_QSTR(MP_QSTR_freq),       MP_ROM_PTR(&litex_machine_freq_obj) }, \
     MACHINE_PIN_ENTRY                                                   \
     MACHINE_SPI_ENTRY                                                   \
