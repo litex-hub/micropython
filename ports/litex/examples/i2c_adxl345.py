@@ -6,7 +6,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 import machine
-import ustruct as struct
+import struct
 import math
 import litex
 

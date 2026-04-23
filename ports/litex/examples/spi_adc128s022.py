@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 from machine import Pin, SoftSPI, SPI
-import ustruct as struct
+import struct
 
 SOFTSPI = False  # select SoftSPI or hardware SPI
 cs = Pin(3, Pin.OUT)
