@@ -529,6 +529,13 @@ function ci_litex_build_board {
     local out_tag=${2:-$board}
     local out=/tmp/litex_mpy_${out_tag}
     shift 2 || shift $#
+    # Variants with --with-ethernet bring in lwIP via extmod; lib/lwip is
+    # a git submodule and actions/checkout@v4 doesn't init submodules
+    # by default, so pull it in here. No-op on warm workspaces, cheap
+    # on cold ones.
+    if printf '%s\n' "$@" | grep -q -- '--with-ethernet'; then
+        git submodule update --init lib/lwip
+    fi
     # --build triggers the SoC instantiation (which writes the software
     # headers and builds the LiteX libraries we link against);
     # --no-compile-gateware skips the FPGA toolchain since CI doesn't
