@@ -7,7 +7,7 @@ easy creation of SoCs on FPGAs with various CPU ISAs/implementations
 flexibility for hardware definition with MicroPython's for control gives
 a powerful, interactive bring-up environment.
 
-The port tracks **upstream MicroPython 1.29**.
+The port tracks **upstream MicroPython 1.28** (latest stable).
 
 Supported features:
 - REPL (Python prompt) over UART.
@@ -294,11 +294,12 @@ flow.
 Hardware testing on Digilent Arty A7
 ------------------------------------
 
-The Arty A7 is the reference board for this port. The full bring-up
-loop — generate SoC, synthesize bitstream, load it, transfer the
-MicroPython firmware over UART, drive tests over the same UART — is
-a single sequence of commands. Once you've installed Vivado +
-openFPGALoader you can repeat any of these steps independently.
+The Arty A7 is the reference board for this port. `tools/run_hw.py`
+drives the full bring-up loop — load bitstream, SFL-upload firmware,
+drop into raw REPL, run each test — over a single open UART fd. The
+single-fd design is deliberate: closing the FTDI port toggles
+DTR/RTS, which on Arty-class boards reaches the FPGA reset line and
+would wipe SDRAM between upload and test.
 
 ```bash
 # 0) Tools (one time):
@@ -321,27 +322,49 @@ python3 -m litex_boards.targets.digilent_arty \
 # 2) Build the MicroPython firmware against the same SoC.
 make -C ports/litex BUILD_DIRECTORY=/tmp/arty_eth -j$(nproc)
 
-# 3) Flash the bitstream to the Arty (volatile SRAM load — gone on
-#    power-cycle; pass `-f` to write to SPI flash for persistence).
-openFPGALoader -b arty /tmp/arty_eth/gateware/digilent_arty.bit
-
-# 4) Upload the firmware over the FTDI's UART channel and drop into
-#    the MicroPython REPL. /dev/ttyUSB1 is the default UART; ttyUSB0
-#    is the JTAG channel.
-litex_term --kernel ports/litex/build/firmware.bin /dev/ttyUSB1
-#    Once the REPL appears, ctrl-] exits litex_term and frees the
-#    serial port for run_hw.py.
-
-# 5) Drive the new functionality from the host.
-ports/litex/tools/run_hw.py ports/litex/test/test_hw_arty.py
+# 3) One shot: load the bitstream, upload firmware, drop into raw
+#    REPL, run the tests. /dev/ttyUSB1 is the default UART;
+#    ttyUSB0 is the JTAG channel.
+ports/litex/tools/run_hw.py \
+    --bitstream /tmp/arty_eth/gateware/digilent_arty.bit \
+    --firmware  ports/litex/build/firmware.bin \
+    ports/litex/test/test_hw_arty.py
 ```
+
+Skip `--bitstream` when the FPGA is already loaded with a fresh
+bitstream and the BIOS is in its console; skip `--firmware` when
+the MicroPython REPL is already up.
 
 `test/test_hw_arty.py` covers, end to end on real silicon: CSR
 read/write, `litex.LED` blink, XADC temperature + vccint, timer IRQ
-→ Python callback dispatch, and `network.LAN(0)` DHCP +  DNS + a
+→ Python callback dispatch, and `network.LAN(0)` DHCP + DNS + a
 plain HTTP GET against the LAN. The FTDI defaults match Arty's
 factory wiring; override with `LITEX_HW_PORT=/dev/ttyUSBn` for other
 serial devices.
+
+### SDCard
+
+For the SD round-trip test, generate the SoC with
+`--with-sdcard --sdcard-adapter=digilent` (a Digilent PmodSD on
+connector JD), insert a FAT/FAT32-formatted microSD, and run:
+
+```bash
+python3 -m litex_boards.targets.digilent_arty \
+    --build --with-sdcard --sdcard-adapter=digilent \
+    --cpu-type=vexriscv --libc-mode=full --output-dir=/tmp/arty_sd
+make -C ports/litex BUILD_DIRECTORY=/tmp/arty_sd -j$(nproc)
+ports/litex/tools/run_hw.py \
+    --bitstream /tmp/arty_sd/gateware/digilent_arty.bit \
+    --firmware  ports/litex/build/firmware.bin \
+    ports/litex/test/test_hw_arty_sdcard.py
+```
+
+The test exercises `machine.SDCard()`, `ioctl(BLOCK_SIZE/COUNT)`,
+`uos.mount('/sd')`, and a write+read+remove file round-trip through
+FatFs + the SDCard block driver. It does *not* mkfs (so any existing
+data on the card is preserved). `run_hw.py` pulses `Q` during the
+BIOS boot wait so a leftover `boot.json` on the card doesn't
+auto-execute before we can drop into the console.
 
 Supported hardware
 ------------------
@@ -485,7 +508,7 @@ The pattern for exposing a LiteX peripheral as a Python class:
 Frozen Python modules
 ---------------------
 
-The port ships an empty `manifest.py` so MicroPython 1.29's frozen
+The port ships an empty `manifest.py` so MicroPython 1.28's frozen
 module machinery has something to point at. To freeze board-specific
 Python helpers into the firmware:
 
