@@ -119,6 +119,14 @@ static MP_DEFINE_CONST_FUN_OBJ_0(litex_machine_freq_obj, litex_machine_freq);
 #define MACHINE_SDCARD_ENTRY
 #endif
 
+#ifdef CSR_WATCHDOG0_BASE
+extern const mp_obj_type_t machine_wdt_type;
+#define MACHINE_WDT_ENTRY \
+    { MP_ROM_QSTR(MP_QSTR_WDT), MP_ROM_PTR(&machine_wdt_type) },
+#else
+#define MACHINE_WDT_ENTRY
+#endif
+
 // machine.unique_id() is the upstream-standard MicroPython API for
 // "give me a bytes object identifying this hardware". On LiteX SoCs the
 // natural source is the IDENTIFIER_MEM CSR ROM (built-in serial-no /
@@ -135,7 +143,8 @@ static MP_DEFINE_CONST_FUN_OBJ_0(litex_machine_freq_obj, litex_machine_freq);
     MACHINE_PWM_ENTRY                                                   \
     MACHINE_SDCARD_ENTRY                                                \
     MACHINE_UART_ENTRY                                                  \
-    MACHINE_ADC_ENTRY
+    MACHINE_ADC_ENTRY                                                   \
+    MACHINE_WDT_ENTRY
 
 // Port callbacks required by extmod/modmachine.c.
 //

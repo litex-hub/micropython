@@ -114,6 +114,7 @@ python3 -m litex_boards.targets.digilent_arty \
     --timer-uptime \
     --with-sdcard --sdcard-adapter=digilent \
     --with-spi-flash \
+    --with-watchdog \
     --uart-baudrate=1000000 \
     --cpu-type=vexriscv \
     --libc-mode=full \
@@ -400,6 +401,7 @@ python3 -m litex_boards.targets.digilent_arty \
     --timer-uptime \
     --with-sdcard --sdcard-adapter=digilent \
     --with-spi-flash \
+    --with-watchdog \
     --uart-baudrate=1000000 \
     --cpu-type=vexriscv \
     --libc-mode=full \
@@ -472,6 +474,7 @@ that core enabled:
 | `machine.SDCard`        | `CSR_SDCORE_BASE` or `CSR_SPISDCARD_BASE` | `machine_sdcard.c` |
 | `machine.UART(id)`      | `CSR_UART<N>_BASE` (extra `--with-uart`) | `machine_uart.c` |
 | `machine.ADC(channel)`  | `CSR_XADC_*` / `CSR_SYSMON_*` (Xilinx XADC / SystemMonitor incl. ZynqUSP rails) | `machine_adc.c` |
+| `machine.WDT(timeout=ms)`| `CSR_WATCHDOG0_BASE` (`--with-watchdog`)| `machine_wdt.c` |
 | `machine.SoftSPI`       | always available (bit-bangs Pin)| `extmod`       |
 | `machine.SoftI2C`       | always available (bit-bangs Pin)| `extmod`       |
 | `litex.LED`             | `CSR_LEDS_BASE`                 | `litex_led.c`  |
