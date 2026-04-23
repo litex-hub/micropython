@@ -120,8 +120,12 @@ def upload_firmware(s, firmware_bytes, base_addr, log,
     last_print = 0
     total = len(firmware_bytes)
     start = time.monotonic()
+    # Rough upload estimate: 8N1 framing → 10 bits/byte, so bytes/sec
+    # is baud/10. Real throughput is a bit lower because of SFL frame
+    # overhead and ack round-trips, but it's close enough for a banner.
+    bytes_per_sec = max(s.baudrate, 1) // 10
     sys.stderr.write(f"[run_hw] uploading {total} B "
-                     f"(~{total / 11500:.0f} s at 115200 baud, "
+                     f"(~{total / bytes_per_sec:.0f} s at {s.baudrate} baud, "
                      f"batches of {batch_frames})\n")
     sys.stderr.flush()
     while sent < total:
@@ -211,7 +215,7 @@ def main():
         default=os.environ.get("LITEX_HW_PORT", "/dev/ttyUSB1"),
         help="MicroPython REPL serial device (default /dev/ttyUSB1).",
     )
-    parser.add_argument("--baudrate", type=int, default=115200)
+    parser.add_argument("--baudrate", type=int, default=2_000_000)
     parser.add_argument(
         "--bitstream",
         default=None,

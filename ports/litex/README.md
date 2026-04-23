@@ -124,7 +124,9 @@ Verilator can simulate, not 115200. `tools/run_sim.py` chunks its writes
 to 64 bytes with a 50 ms inter-chunk pause so the firmware's 128-byte
 libbase RX ring buffer always has room; hundreds-of-bytes test scripts
 run comfortably this way. Hardware is straight RS-232 at whatever baud
-the SoC was generated with (115200 by default).
+the SoC was generated with (the recommended Arty setup below uses
+`--uart-baudrate=2000000` for ~17× faster firmware uploads; the FT2232H
+on the Arty handles up to 12 Mbps).
 
 The `litex` module
 ------------------
@@ -318,6 +320,7 @@ python3 -m litex_boards.targets.digilent_arty \
     --with-xadc \
     --timer-uptime \
     --with-sdcard --sdcard-adapter=digilent \
+    --uart-baudrate=2000000 \
     --cpu-type=vexriscv \
     --libc-mode=full \
     --output-dir=/tmp/arty_full
