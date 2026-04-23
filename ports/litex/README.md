@@ -46,10 +46,15 @@ Highlights
   `network.LAN(0)` over LiteEth + lwIP. DHCP, DNS, TCP/UDP sockets —
   all the standard MicroPython network API.
 
-- 💾 **FatFS over SD**
+- 💾 **FatFS over SD or on-board SPI flash**
 
   `machine.SDCard()` + `os.mount('/sd')` round-trips through FatFs
   and the LiteSDCard core (4-bit SDIO + DMA).
+
+  Or, on any board that ships a Quad-SPI flash, `litex.SPIFlash()` +
+  `os.mount('/flash')` gives you persistent storage without an SD card
+  at all — same FatFs filesystem on top of liblitespi's memory-mapped
+  XIP read path and 64 KiB sector erase/write.
 
 - 🔁 **Same Python, every board**
 
@@ -108,6 +113,7 @@ python3 -m litex_boards.targets.digilent_arty \
     --with-xadc \
     --timer-uptime \
     --with-sdcard --sdcard-adapter=digilent \
+    --with-spi-flash \
     --uart-baudrate=1000000 \
     --cpu-type=vexriscv \
     --libc-mode=full \
@@ -393,6 +399,7 @@ python3 -m litex_boards.targets.digilent_arty \
     --with-xadc \
     --timer-uptime \
     --with-sdcard --sdcard-adapter=digilent \
+    --with-spi-flash \
     --uart-baudrate=1000000 \
     --cpu-type=vexriscv \
     --libc-mode=full \

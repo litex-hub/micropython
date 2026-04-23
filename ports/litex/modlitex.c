@@ -30,6 +30,9 @@ extern const mp_obj_type_t litex_led_type;
 extern const mp_obj_type_t litex_dmawriter_type;
 extern const mp_obj_type_t litex_dmareader_type;
 extern const mp_obj_type_t litex_video_type;
+#ifdef CSR_SPIFLASH_BASE
+extern const mp_obj_type_t litex_spiflash_type;
+#endif
 
 // litex.read32(addr) / litex.write32(addr, value) — raw MMIO. Thin wrappers
 // over machine.mem32[addr], but named to make CSR bring-up scripts readable:
@@ -498,6 +501,9 @@ static const mp_rom_map_elem_t litex_module_globals_table[] = {
     #endif
     #ifdef CSR_VIDEO_FRAMEBUFFER_BASE
     { MP_ROM_QSTR(MP_QSTR_Video),         MP_ROM_PTR(&litex_video_type) },
+    #endif
+    #ifdef CSR_SPIFLASH_BASE
+    { MP_ROM_QSTR(MP_QSTR_SPIFlash),      MP_ROM_PTR(&litex_spiflash_type) },
     #endif
 };
 

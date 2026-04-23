@@ -140,6 +140,7 @@ SRC_C = \
 	litex_led.c \
 	litex_dma.c \
 	litex_video.c \
+	litex_spiflash.c \
 	machine_hw_spi.c \
 	machine_timer.c \
 	machine_pwm.c \
