@@ -248,6 +248,22 @@ TESTS ?= test/test_hello_world.py
 test: $(BUILD)/firmware.bin
 	$(Q)tools/run_sim.py --firmware $(BUILD)/firmware.bin --output-dir $(BUILD_DIRECTORY) $(TESTS)
 
-.PHONY: test
+# Run the end-to-end hardware tests on an Arty A7 connected via its
+# FTDI UART. Defaults target the README's arty_full SoC + the four
+# currently-maintained hw test scripts; override BITSTREAM / TESTS_HW
+# to point elsewhere. The firmware is (re)built as a prerequisite.
+BITSTREAM ?= $(BUILD_DIRECTORY)/gateware/digilent_arty.bit
+TESTS_HW  ?= \
+	test/test_hw_arty.py \
+	test/test_hw_arty_sdcard.py \
+	test/test_hw_arty_spiflash.py \
+	test/test_hw_arty_wdt.py
+test-hw: $(BUILD)/firmware.bin
+	$(Q)tools/run_hw.py \
+		--bitstream $(BITSTREAM) \
+		--firmware  $(BUILD)/firmware.bin \
+		$(TESTS_HW)
+
+.PHONY: test test-hw
 
 include ../../py/mkrules.mk

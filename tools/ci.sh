@@ -479,14 +479,29 @@ sys.exit(1 if errs else 0)
 "
 }
 
-function ci_litex_build_board_digilent_arty_sdcard {
-    # Same SoC target, but with --with-sdcard --sdcard-adapter=digilent so
-    # the build pulls in liblitesdcard + machine_sdcard.c + extmod's
-    # oofatfs and exercises the MICROPY_VFS_FAT path. Catches API drift
-    # in LiteX's libliteSDcard CSRs at build time (the kind of breakage
-    # we hit going from r[3]>>16 to r[0]>>16 RCA decode).
-    ci_litex_build_board digilent_arty digilent_arty_sdcard \
-        --with-sdcard --sdcard-adapter=digilent
+function ci_litex_build_board_digilent_arty_full {
+    # Mirror the SoC config the README recommends for the end-to-end
+    # hardware test loop on the Arty. Beyond the stock build, this
+    # pulls in:
+    #   * LiteSDCard (liblitesdcard + machine_sdcard.c + oofatfs VFS)
+    #   * LiteSPI flash (liblitespi + litex_spiflash.c + oofatfs VFS)
+    #   * XADC (machine_adc.c)
+    #   * Watchdog (machine_wdt.c)
+    #   * Ethernet (liteeth + lwIP + network_lan.c)
+    # so *every* ifdef-gated code path in the port is actually compiled
+    # at CI time. Catches the class of bug where a commit quietly breaks
+    # liblitespi / libliteSDcard integration because the sim variants
+    # don't exercise those cores. --uart-baudrate / --timer-uptime are
+    # kept so the resulting headers match what a user would actually
+    # build against following the README.
+    ci_litex_build_board digilent_arty digilent_arty_full \
+        --with-ethernet \
+        --with-xadc \
+        --timer-uptime \
+        --with-sdcard --sdcard-adapter=digilent \
+        --with-spi-flash \
+        --with-watchdog \
+        --uart-baudrate=1000000
 }
 
 function ci_litex_build_board {

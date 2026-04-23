@@ -104,7 +104,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        board: [digilent_arty, digilent_arty_sdcard]
+        board: [digilent_arty, digilent_arty_full]
     steps:
     - uses: actions/checkout@v4
     - name: Cache apt packages
