@@ -149,6 +149,7 @@ SRC_C = \
 	machine_uart.c \
 	machine_adc.c \
 	machine_wdt.c \
+	machine_i2c.c \
 	liteeth_netif.c \
 	network_lan.c \
 	shared/runtime/sys_stdio_mphal.c \

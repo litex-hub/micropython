@@ -468,6 +468,8 @@ that core enabled:
 | Python class            | Required CSR / build flag       | Source        |
 | ----------------------- | ------------------------------- | ------------- |
 | `machine.Pin`           | `CSR_GPIO_BASE` (board-specific GPIO flag, e.g. `--with-pmod-gpio` on Arty) | `machine_pin.c` |
+| `machine.Pin.irq()`     | as above, with `with_irq=True` passed to the GPIO core (no stock Arty flag — needs a custom target) | `machine_pin.c` |
+| `machine.I2C`           | `CSR_I2CMASTER_BASE` (`SoC.add_i2c_master()` — no stock Arty flag yet) | `machine_i2c.c` |
 | `machine.SPI`           | `CSR_SPI_BASE` / `CSR_SPI0_BASE` (`--with-spi`) | `machine_hw_spi.c` |
 | `machine.Timer`         | `CSR_TIMER0_BASE` (always present) | `machine_timer.c` |
 | `machine.PWM`           | `CSR_LEDS_PWM_ENABLE_ADDR` (`--with-led-chaser` + PWM) | `machine_pwm.c` |
