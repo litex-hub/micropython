@@ -30,9 +30,8 @@ from pathlib import Path
 
 PORT_DIR = Path(__file__).resolve().parent.parent
 
-# LiteX BIOS serialboot magic string and our reply (note trailing
-# newlines — both directions). Matches litex/tools/litex_term.py.
-SFL_MAGIC_REQ = b"sL5DdSMmkekro\n"
+# SFL ACK we send back when we see the BIOS's "sL5DdSMmkekro" magic.
+# (litex/tools/litex_term.py uses the matching pair.)
 SFL_MAGIC_ACK = b"z6IHG7cYDID6o\n"
 # SFL (Serial File Loader) command codes.
 SFL_FRAME_LOAD = 0x01
@@ -227,10 +226,24 @@ def main():
             sys.exit(f"openFPGALoader failed (exit {rc})")
 
     if args.firmware:
-        print(f"[run_hw] waiting for BIOS serialboot prompt", file=sys.stderr)
-        if read_until(s, SFL_MAGIC_REQ, timeout=30, log=log) is None:
-            sys.exit("[run_hw] BIOS serialboot magic not seen — did the bitstream load?")
-        # Acknowledge and start uploading.
+        # Don't race the BIOS's 5-second auto-serialboot window. Wait
+        # for it to fall through every boot method and land in its
+        # interactive `litex>` console — at that point we can issue
+        # `serialboot` ourselves whenever we're ready, with no race
+        # and no \r\n vs \n parsing fragility.
+        print("[run_hw] waiting for BIOS console prompt", file=sys.stderr)
+        # The console prompt is ANSI-coloured (`\x1b[92;1mlitex\x1b[0m>`),
+        # so match the bare "litex" substring instead of "litex>".
+        if read_until(s, b"litex", timeout=60, log=log) is None:
+            sys.exit("[run_hw] BIOS console prompt not seen — bitstream loaded?")
+        # Tiny pause so the prompt's `>` byte arrives before we type.
+        time.sleep(0.2)
+        print("[run_hw] sending `serialboot`", file=sys.stderr)
+        s.write(b"serialboot\n")
+        # BIOS replies with the SFL magic; match on a substring that's
+        # present whether the BIOS uses \n or \r\n.
+        if read_until(s, b"sL5DdSMmkekro", timeout=15, log=log) is None:
+            sys.exit("[run_hw] BIOS did not enter serialboot")
         s.write(SFL_MAGIC_ACK)
         firmware_bytes = open(args.firmware, "rb").read()
         if not upload_firmware(s, firmware_bytes, args.kernel_adr, log):
