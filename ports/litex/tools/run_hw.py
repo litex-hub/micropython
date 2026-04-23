@@ -85,7 +85,12 @@ def read_until(s, marker, timeout, log=None, mirror=None):
     deadline = time.monotonic() + timeout
     buf = b""
     while time.monotonic() < deadline:
-        chunk = s.read(4096)
+        # `read(n, timeout=T)` blocks until n bytes OR T expires — so
+        # read(4096) on a single-byte ACK would always burn the full
+        # timeout. Use in_waiting to grab everything queued and only
+        # block (for one byte) when nothing's there.
+        n = max(s.in_waiting, 1)
+        chunk = s.read(n)
         if chunk:
             buf += chunk
             if log is not None:
@@ -105,11 +110,17 @@ def read_until(s, marker, timeout, log=None, mirror=None):
 
 def upload_firmware(s, firmware_bytes, base_addr, log):
     """Send an SFL upload + jump for `firmware_bytes` to base_addr.
-    Caller must have already seen SERIALBOOT_MAGIC and ACKed it.
+    Caller must have already seen the BIOS magic and ACKed it.
     Replicates the protocol used by litex_term --serial-boot."""
     chunk_size = 251  # max payload that fits one SFL frame's length byte
     written = 0
-    while written < len(firmware_bytes):
+    last_print = 0
+    total = len(firmware_bytes)
+    start = time.monotonic()
+    sys.stderr.write(f"[run_hw] uploading {total} B "
+                     f"(~{total / 11500:.0f} s at 115200 baud)\n")
+    sys.stderr.flush()
+    while written < total:
         chunk = firmware_bytes[written : written + chunk_size]
         payload = struct.pack(">I", base_addr + written) + chunk
         s.write(sfl_frame(SFL_FRAME_LOAD, payload))
@@ -119,15 +130,23 @@ def upload_firmware(s, firmware_bytes, base_addr, log):
         # drowning out anything else in the terminal.
         ack = read_until(s, [b"K", b"C", b"E"], timeout=5, log=log, mirror=False)
         if ack is None:
+            sys.stderr.write(f"\n[run_hw] upload stalled at {written}/{total}\n")
             return False
         if ack[-1:] != b"K":
             # 'C' or 'E' means CRC / error — bail.
+            sys.stderr.write(f"\n[run_hw] upload {ack[-1:]!r} at {written}/{total}\n")
             return False
         written += len(chunk)
-        if written % 4096 == 0:
-            sys.stderr.write(f"\r[run_hw] upload {written}/{len(firmware_bytes)}")
+        # Print every ~16 KiB. Don't gate on `written % 4096 == 0`
+        # because chunk_size=251 never lands on those boundaries.
+        if written - last_print >= 16384 or written == total:
+            elapsed = time.monotonic() - start
+            kbps = written / max(elapsed, 0.001) / 1024
+            sys.stderr.write(f"\r[run_hw] upload {written}/{total}  "
+                             f"({kbps:.1f} KiB/s, {elapsed:.1f} s)")
             sys.stderr.flush()
-    sys.stderr.write(f"\r[run_hw] upload {written}/{len(firmware_bytes)}\n")
+            last_print = written
+    sys.stderr.write("\n")
     # Jump to the firmware.
     s.write(sfl_frame(SFL_FRAME_JUMP, struct.pack(">I", base_addr)))
     s.flush()
