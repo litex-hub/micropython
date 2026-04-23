@@ -32,6 +32,13 @@ assert nb > 0, "card reports zero blocks — is one inserted?"
 print("SDCard probe OK")
 
 print("=== mount /sd ===")
+# If a previous run aborted before umount, /sd is still mounted and a
+# fresh mount would raise OSError(1). Tolerate that case so the test is
+# rerunnable without rebooting the firmware.
+try:
+    os.umount("/sd")
+except OSError:
+    pass
 os.mount(sd, "/sd")
 print("mounted; listing /sd:")
 for name in os.listdir("/sd"):
@@ -50,7 +57,8 @@ assert got == payload, "readback mismatch: %r" % got
 
 # Clean up.
 os.remove(fname)
-assert fname.rsplit("/", maxsplit=1)[-1] not in os.listdir("/sd"), "remove failed"
+# MicroPython's str.rsplit is positional-only — don't pass maxsplit by keyword.
+assert fname.rsplit("/", 1)[-1] not in os.listdir("/sd"), "remove failed"
 print("file round-trip OK (%d bytes)" % len(payload))
 
 os.umount("/sd")
