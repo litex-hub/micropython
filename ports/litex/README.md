@@ -1,30 +1,42 @@
-MicroPython port to the LiteX SoC FPGA framework
-================================================
+MicroPython on LiteX — Python Meets FPGA Power
+==============================================
 
-This is a port of MicroPython to the LiteX SoC FPGA framework. LiteX allows
-easy creation of SoCs on FPGAs with various CPU ISAs/implementations
-(VexRiscv, NaxRiscv, Mor1kx, ...) and peripherals. Combining LiteX's
-flexibility for hardware definition with MicroPython's for control gives
-a powerful, interactive bring-up environment.
+![MicroPython on LiteX banner](litex_micropython.png)
 
-The port tracks **upstream MicroPython 1.28** (latest stable).
+**Write Python. Build SoCs. Drive real silicon — interactively.**
 
-Supported features:
-- REPL (Python prompt) over UART.
-- Standard `machine` module: `Pin`, `SPI`/`SoftSPI`, `SoftI2C`, `PWM`,
-  `Timer`, `UART` (secondary UARTs), `SDCard`, `ADC` (Xilinx XADC),
-  `mem8/16/32`, plus `reset()`, `freq()`, and the LiteX-specific
-  `identifier()`. Peripheral classes are gated by the corresponding CSR,
-  so `machine.Pin` only appears on SoCs built with a GPIO core, etc.
-- Standard `time` and `os` modules with the LiteX timer HAL underneath.
-- LiteX-specific `litex` module for build metadata (sys_clk_freq, git
-  sha, bus standard), raw MMIO (`read32`/`write32`), by-name CSR access
-  (`csr_read`/`csr_write`/`csrs` via a build-time lookup table),
-  `EventManager` for per-peripheral event CSRs, and `info()`.
-- Optional peripheral wrappers under `litex.*`: `LED`, `DMAWriter`,
-  `DMAReader`, `Video` (the `Video` object plugs directly into
-  `framebuf.FrameBuffer` for zero-copy drawing).
-- FatFS over SD card (when the SoC includes an `SDCore` or `SPISDCard`).
+LiteX lets you assemble custom SoCs on any FPGA, mixing and matching
+CPUs (VexRiscv, NaxRiscv, Mor1kx, …), buses, and over a hundred
+peripheral cores. This port drops MicroPython on top, so the same code
+that prints `'hello world'` from a REPL can also drive a 4-bit SDIO
+controller, light up a 1080p framebuffer, or pull DHCP off Gigabit
+Ethernet — without recompiling for each board. **One Python codebase,
+[150+ LiteX-supported boards](https://github.com/litex-hub/litex-boards).**
+
+Tracks **upstream MicroPython 1.28** (latest stable).
+
+Highlights
+----------
+
+- 🐍 **Familiar `machine` module** — `Pin`, `SPI`/`SoftSPI`,
+  `I2C`/`SoftI2C`, `PWM`, `Timer`, `UART`, `SDCard`, `ADC` (XADC /
+  SystemMonitor), `mem8/16/32`. Peripheral classes auto-appear based
+  on which cores the SoC was built with — no manual config.
+- ⚡ **`litex` module** for what's unique to LiteX SoCs: build metadata,
+  raw MMIO, by-name CSR access via a build-time lookup table,
+  `EventManager` for per-peripheral event registers (with IRQ → Python
+  callback dispatch via `mp_sched_schedule`), and helpers for `LED`,
+  `DMAWriter`/`DMAReader`, and `Video` (zero-copy `framebuf.FrameBuffer`).
+- 🌐 **Networking** — `network.LAN(0)` over LiteEth + lwIP. DHCP, DNS,
+  TCP/UDP sockets, all the standard MicroPython network API.
+- 💾 **FatFS over SD** — `machine.SDCard()` + `os.mount('/sd')` round
+  trips through FatFs and the LiteSDCard core (4-bit SDIO + DMA).
+- 🔁 **Same Python, every board** — class gating on `CSR_<CORE>_BASE`
+  means a script written against `machine.UART` works on any SoC that
+  includes a UART core, on any LiteX-supported board.
+- 🧪 **Tested in CI under Verilator-simulated SoCs**, plus an
+  end-to-end hardware test loop on the Digilent Arty A7 — see the
+  "Hardware testing" section below.
 
 Setting up LiteX
 ----------------
