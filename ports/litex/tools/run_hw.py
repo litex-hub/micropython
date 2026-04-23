@@ -108,8 +108,7 @@ def read_until(s, marker, timeout, log=None, mirror=None):
     return None
 
 
-def upload_firmware(s, firmware_bytes, base_addr, log,
-                    chunk_size=251, batch_frames=16):
+def upload_firmware(s, firmware_bytes, base_addr, log, chunk_size=251, batch_frames=16):
     """Batched SFL upload of `firmware_bytes` to base_addr. We send a
     burst of `batch_frames` SFL LOAD frames in a single s.write() so
     Python loop overhead and USB write syscalls amortise across the
@@ -124,9 +123,11 @@ def upload_firmware(s, firmware_bytes, base_addr, log,
     # is baud/10. Real throughput is a bit lower because of SFL frame
     # overhead and ack round-trips, but it's close enough for a banner.
     bytes_per_sec = max(s.baudrate, 1) // 10
-    sys.stderr.write(f"[run_hw] uploading {total} B "
-                     f"(~{total / bytes_per_sec:.0f} s at {s.baudrate} baud, "
-                     f"batches of {batch_frames})\n")
+    sys.stderr.write(
+        f"[run_hw] uploading {total} B "
+        f"(~{total / bytes_per_sec:.0f} s at {s.baudrate} baud, "
+        f"batches of {batch_frames})\n"
+    )
     sys.stderr.flush()
     while sent < total:
         # Build up to `batch_frames` SFL frames into one buffer.
@@ -158,19 +159,22 @@ def upload_firmware(s, firmware_bytes, base_addr, log,
                     ks_seen += 1
                 elif b in (ord("C"), ord("E")):
                     sys.stderr.write(
-                        f"\n[run_hw] upload {chr(b)} at {burst_start + ks_seen * chunk_size}/{total}\n")
+                        f"\n[run_hw] upload {chr(b)} at {burst_start + ks_seen * chunk_size}/{total}\n"
+                    )
                     return False
         if ks_seen < n_frames:
             sys.stderr.write(
                 f"\n[run_hw] upload stalled — got {ks_seen}/{n_frames} acks "
-                f"in burst at {burst_start}/{total}\n")
+                f"in burst at {burst_start}/{total}\n"
+            )
             return False
         # Progress every ~16 KiB.
         if sent - last_print >= 16384 or sent == total:
             elapsed = time.monotonic() - start
             kbps = sent / max(elapsed, 0.001) / 1024
-            sys.stderr.write(f"\r[run_hw] upload {sent}/{total}  "
-                             f"({kbps:.1f} KiB/s, {elapsed:.1f} s)")
+            sys.stderr.write(
+                f"\r[run_hw] upload {sent}/{total}  ({kbps:.1f} KiB/s, {elapsed:.1f} s)"
+            )
             sys.stderr.flush()
             last_print = sent
     sys.stderr.write("\n")
@@ -231,7 +235,7 @@ def raw_repl_send(s, script, exec_timeout, log):
                     break  # short read; loop back to top to re-check
                 else:
                     return None, "raw-paste: unexpected byte %r" % ack
-            chunk = payload[i:i + min(window_remain, len(payload) - i)]
+            chunk = payload[i : i + min(window_remain, len(payload) - i)]
             s.write(chunk)
             s.flush()
             window_remain -= len(chunk)
@@ -248,7 +252,7 @@ def raw_repl_send(s, script, exec_timeout, log):
         # Fallback: naive write + "OK" marker check. Safe at 115200,
         # may drop bytes at higher baud where the parser can't keep up.
         for i in range(0, len(payload), 256):
-            s.write(payload[i:i + 256])
+            s.write(payload[i : i + 256])
             s.flush()
         s.write(b"\x04")
         if read_until(s, b"OK", timeout=10, log=log) is None:
@@ -274,8 +278,9 @@ def main():
         help="MicroPython REPL serial device (default /dev/ttyUSB1).",
     )
     parser.add_argument("--baudrate", type=int, default=1_000_000)
-    parser.add_argument("--batch-frames", type=int, default=16,
-                        help="Number of SFL frames per write burst.")
+    parser.add_argument(
+        "--batch-frames", type=int, default=16, help="Number of SFL frames per write burst."
+    )
     parser.add_argument(
         "--bitstream",
         default=None,
@@ -298,7 +303,8 @@ def main():
     parser.add_argument("--kernel-adr", type=lambda s: int(s, 0), default=0x40000000)
     parser.add_argument("--log", default="/tmp/run_hw.log")
     parser.add_argument(
-        "-q", "--quiet",
+        "-q",
+        "--quiet",
         action="store_true",
         help="Don't mirror serial traffic (BIOS output, REPL prints, "
         "live test stdout) to stderr. Use this in CI or when piping "
@@ -328,7 +334,8 @@ def main():
         print(f"[run_hw] loading {args.bitstream}", file=sys.stderr)
         rc = subprocess.run(
             ["openFPGALoader", "-b", args.openfpgaloader_board, args.bitstream],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         ).returncode
         if rc != 0:
             sys.exit(f"openFPGALoader failed (exit {rc})")
@@ -346,21 +353,24 @@ def main():
         # and without this the SDCard-boot path would happily run
         # whatever boot.json we have on the card instead of dropping
         # into the console.
-        print("[run_hw] waiting for BIOS console prompt (sending Q to abort auto-boot)",
-              file=sys.stderr)
+        print(
+            "[run_hw] waiting for BIOS console prompt (sending Q to abort auto-boot)",
+            file=sys.stderr,
+        )
         deadline = time.monotonic() + 60
         seen = b""
         litex_prompt = b"litex"  # ANSI-wrapped, match the bare brand name
         while time.monotonic() < deadline and litex_prompt not in seen:
             s.write(b"Q\n")
             s.flush()
-            chunk = read_until(s, [litex_prompt, b"booted program"],
-                               timeout=2, log=log)
+            chunk = read_until(s, [litex_prompt, b"booted program"], timeout=2, log=log)
             if chunk:
                 seen += chunk
                 if b"booted program" in chunk:
-                    sys.exit("[run_hw] board started executing a SDCard/network "
-                             "boot.json before we could abort — remove it and retry")
+                    sys.exit(
+                        "[run_hw] board started executing a SDCard/network "
+                        "boot.json before we could abort — remove it and retry"
+                    )
         if litex_prompt not in seen:
             sys.exit("[run_hw] BIOS console prompt not seen — bitstream loaded?")
         # Tiny pause so the prompt's `>` byte arrives before we type.
@@ -379,8 +389,9 @@ def main():
         s.flush()
         time.sleep(0.1)
         firmware_bytes = open(args.firmware, "rb").read()
-        if not upload_firmware(s, firmware_bytes, args.kernel_adr, log,
-                               batch_frames=args.batch_frames):
+        if not upload_firmware(
+            s, firmware_bytes, args.kernel_adr, log, batch_frames=args.batch_frames
+        ):
             sys.exit("[run_hw] firmware upload failed")
         if read_until(s, b"MicroPython", timeout=30, log=log) is None:
             sys.exit("[run_hw] MicroPython REPL did not appear after upload")

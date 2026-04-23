@@ -24,9 +24,12 @@ vccaux = machine.ADC("vccaux")
 while True:
     t_raw = temp.read()
     t_c = t_raw * 503.975 / 4096 - 273.15
-    print("die %.1f C  vccint %.2f V  vccaux %.2f V" % (
-        t_c,
-        vccint.read() * 3 / 4096,
-        vccaux.read() * 3 / 4096,
-    ))
+    print(
+        "die %.1f C  vccint %.2f V  vccaux %.2f V"
+        % (
+            t_c,
+            vccint.read() * 3 / 4096,
+            vccaux.read() * 3 / 4096,
+        )
+    )
     time.sleep(1)
