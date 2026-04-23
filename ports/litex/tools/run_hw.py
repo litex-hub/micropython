@@ -113,6 +113,7 @@ def upload_firmware(s, firmware_bytes, base_addr, log):
         chunk = firmware_bytes[written : written + chunk_size]
         payload = struct.pack(">I", base_addr + written) + chunk
         s.write(sfl_frame(SFL_FRAME_LOAD, payload))
+        s.flush()
         # BIOS ACKs each frame; consume the ACK byte to flow-control.
         # Don't mirror the per-frame K — it'd be one K per ~250 bytes,
         # drowning out anything else in the terminal.
@@ -129,6 +130,7 @@ def upload_firmware(s, firmware_bytes, base_addr, log):
     sys.stderr.write(f"\r[run_hw] upload {written}/{len(firmware_bytes)}\n")
     # Jump to the firmware.
     s.write(sfl_frame(SFL_FRAME_JUMP, struct.pack(">I", base_addr)))
+    s.flush()
     return True
 
 
@@ -240,11 +242,17 @@ def main():
         time.sleep(0.2)
         print("[run_hw] sending `serialboot`", file=sys.stderr)
         s.write(b"serialboot\n")
+        s.flush()
         # BIOS replies with the SFL magic; match on a substring that's
         # present whether the BIOS uses \n or \r\n.
         if read_until(s, b"sL5DdSMmkekro", timeout=15, log=log) is None:
             sys.exit("[run_hw] BIOS did not enter serialboot")
+        # Drain any trailing bytes (the BIOS prints the magic with a
+        # newline; we don't want stale prompt fragments confusing the
+        # frame-ack reads further down).
         s.write(SFL_MAGIC_ACK)
+        s.flush()
+        time.sleep(0.1)
         firmware_bytes = open(args.firmware, "rb").read()
         if not upload_firmware(s, firmware_bytes, args.kernel_adr, log):
             sys.exit("[run_hw] firmware upload failed")
