@@ -27,7 +27,7 @@ print("Create {} file.".format(test_filename))
 
 # Write contents to it.
 with open(test_filename, "wt") as f:
-    f.write("Hello World from Micropython running on your LiteX SoC!\n")
+    f.write("Hello World from MicroPython running on your LiteX SoC!\n")
 
 # List files.
 print("List files:")

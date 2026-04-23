@@ -119,7 +119,7 @@ class PtyRepl:
             sys.stderr.flush()
         chunk_size = 64
         for i in range(0, len(data), chunk_size):
-            chunk = data[i:i + chunk_size]
+            chunk = data[i : i + chunk_size]
             view = memoryview(chunk)
             while view:
                 try:
