@@ -7,11 +7,14 @@ MicroPython on LiteX — Python Meets FPGA Power
 
 LiteX lets you assemble custom SoCs on any FPGA, mixing and matching
 CPUs (VexRiscv, NaxRiscv, Mor1kx, …), buses, and over a hundred
-peripheral cores. This port drops MicroPython on top, so the same code
-that prints `'hello world'` from a REPL can also drive a 4-bit SDIO
-controller, light up a 1080p framebuffer, or pull DHCP off Gigabit
-Ethernet — without recompiling for each board. **One Python codebase,
-[150+ LiteX-supported boards](https://github.com/litex-hub/litex-boards).**
+peripheral cores. This port drops MicroPython on top, so the same Python
+script that prints `'hello world'` from a REPL can also drive a 4-bit
+SDIO controller, light up a 1080p framebuffer, or pull DHCP off Gigabit
+Ethernet. **Same Python scripts across
+[150+ LiteX-supported boards](https://github.com/litex-hub/litex-boards)** —
+the firmware itself is rebuilt per SoC variant (CSR addresses are baked
+in at compile time), but the build is a single `make` against the SoC's
+generated headers, and the user-facing API is identical everywhere.
 
 Tracks **upstream MicroPython 1.28** (latest stable).
 
@@ -31,9 +34,12 @@ Highlights
   TCP/UDP sockets, all the standard MicroPython network API.
 - 💾 **FatFS over SD** — `machine.SDCard()` + `os.mount('/sd')` round
   trips through FatFs and the LiteSDCard core (4-bit SDIO + DMA).
-- 🔁 **Same Python, every board** — class gating on `CSR_<CORE>_BASE`
-  means a script written against `machine.UART` works on any SoC that
-  includes a UART core, on any LiteX-supported board.
+- 🔁 **Same Python, every board** — your `.py` files are portable
+  across all 150+ LiteX-supported boards: class gating on
+  `CSR_<CORE>_BASE` means a script written against `machine.UART` works
+  on any SoC that includes a UART core. (The firmware binary itself is
+  rebuilt per SoC since CSR addresses come from generated headers — one
+  `make -C ports/litex BUILD_DIRECTORY=…` per SoC variant.)
 - 🧪 **Tested in CI under Verilator-simulated SoCs**, plus an
   end-to-end hardware test loop on the Digilent Arty A7 — see the
   "Hardware testing" section below.
