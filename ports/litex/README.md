@@ -65,56 +65,81 @@ Highlights
   Plus an end-to-end hardware test loop on the Digilent Arty A7 —
   see the "Hardware testing" section below.
 
+A few terms
+-----------
+
+If you're new to LiteX:
+
+- **CSR** = *Control/Status Register*. Memory-mapped registers LiteX
+  generates for every peripheral, with addresses exposed in
+  `software/include/generated/csr.h` after the SoC build.
+- **BIOS** = LiteX's tiny ROM bootloader. On power-up it brings up
+  SDRAM, then waits ~5 s for someone to push a kernel image over the
+  UART (or boot from SD/flash/network) before dropping into a
+  `litex>` console prompt.
+- **SFL** = *Serial File Loader*. The protocol the BIOS speaks for
+  uploading binaries over UART. `litex_term --kernel=…` and our
+  `tools/run_hw.py` both use it.
+
 Setting up LiteX
 ----------------
 
-To install LiteX, please follow the [LiteX installation guide](https://github.com/enjoy-digital/litex/wiki/Installation).
+Follow the [LiteX installation guide](https://github.com/enjoy-digital/litex/wiki/Installation)
+to get the LiteX Python tooling, your CPU's GCC cross-toolchain, and
+either Vivado (Xilinx) or yosys+nextpnr (open source) for the FPGA bits.
 
-Building your LiteX target
---------------------------
-The port of MicroPython to LiteX relies on the software files generated during the target build
-that will provides the hardware definition and mapping to MicroPython. To build the MicroPython
-firmware, the LiteX target then first needs to be generated. Many FPGA boards are already available
-in [LiteX-Boards](https://github.com/litex-hub/litex-boards), in this example, we'll use the Digilent
-Arty board:
+You'll also want `pyserial` (`pip install pyserial`) for the
+`tools/run_hw.py` driver below.
+
+Quick start: build, load, run tests on a Digilent Arty A7
+---------------------------------------------------------
+
+[LiteX-Boards](https://github.com/litex-hub/litex-boards) ships ready-to-go
+SoC targets for 150+ boards. We'll use the Arty A7 here because it's the
+port's reference board and has the full hardware-test loop in CI.
 
 ```bash
-$ python3 -m litex_boards.targets.digilent_arty --with-ethernet --with-pmod-gpio --timer-uptime --build --load
-```
-This will build the FPGA SoC, generate the software headers, compile the BIOS/FPGA and load it to the board.
+# 1) Generate the SoC + synthesize the bitstream (Vivado, ~10–15 min).
+#    Enable everything the hw tests exercise so a single bitstream
+#    covers them all.
+python3 -m litex_boards.targets.digilent_arty \
+    --build \
+    --with-ethernet \
+    --with-xadc \
+    --timer-uptime \
+    --with-sdcard --sdcard-adapter=digilent \
+    --uart-baudrate=1000000 \
+    --cpu-type=vexriscv \
+    --libc-mode=full \
+    --output-dir=/tmp/arty_full
 
-Building MicroPython for your LiteX target
-------------------------------------------
-To build MicroPython for your LiteX target run:
-```bash
-$ export BUILD_DIRECTORY=build/digilent_arty
-$ make
+# 2) Build the MicroPython firmware against the SoC's generated headers.
+#    CSR addresses are baked in here, so re-run this step every time
+#    you switch SoC variants.
+make -C ports/litex BUILD_DIRECTORY=/tmp/arty_full -j$(nproc)
+
+# 3) One shot: load the bitstream, SFL-upload the firmware, drop
+#    into raw REPL, run the hardware tests.
+ports/litex/tools/run_hw.py \
+    --bitstream /tmp/arty_full/gateware/digilent_arty.bit \
+    --firmware  ports/litex/build/firmware.bin \
+    ports/litex/test/test_hw_arty.py \
+    ports/litex/test/test_hw_arty_sdcard.py
 ```
 
-Loading MicroPython to your LiteX target
-----------------------------------------
-To load MicroPython for your LiteX target run:
-```bash
-$ litex_term /dev/ttyUSBX --kernel=build/firmware.bin
-```
-You can also use TFTP boot from LiteX:
-```bash
-$ cp build/firmware.bin /tftpboot/boot.bin
-```
-And just let LiteX boot from it!...
+Expected: `[run_hw] OK: 2/2`. See the **Hardware testing on Digilent
+Arty A7** section below for what each test covers and the per-step
+shortcuts (skip `--bitstream` once the FPGA is loaded, skip
+`--firmware` once the REPL is up).
 
-..or use one of the other available boot methods described at https://github.com/enjoy-digital/litex/wiki/Load-Application-Code-To-CPU
+For other boards, swap the LiteX-Boards target on step 1 and pick the
+peripheral flags your hardware exposes — the firmware build (step 2)
+and `run_hw.py` (step 3) are board-agnostic.
 
-Running tests against real hardware
------------------------------------
-With the MicroPython firmware booted on the SoC, the tests under `test/`
-can be driven with the standard `pyboard.py` RAW-REPL client:
-```bash
-$ cd test
-$ python3 ../../../tools/pyboard.py -d /dev/ttyUSBX test_hello_world.py
-$ python3 ../../../tools/pyboard.py -d /dev/ttyUSBX test_machine.py
-$ # ... etc.
-```
+If you'd rather upload firmware manually (e.g. you don't want to run
+the full test loop), `litex_term /dev/ttyUSBX --kernel=ports/litex/build/firmware.bin`
+also works (same SFL protocol underneath); ctrl-] exits litex_term and
+gives you a normal serial connection to the REPL.
 
 Running tests under LiteX-sim (no FPGA needed)
 ----------------------------------------------
@@ -424,7 +449,7 @@ that core enabled:
 
 | Python class            | Required CSR / build flag       | Source        |
 | ----------------------- | ------------------------------- | ------------- |
-| `machine.Pin`           | `CSR_GPIO_BASE` (`--with-gpio`) | `machine_pin.c` |
+| `machine.Pin`           | `CSR_GPIO_BASE` (board-specific GPIO flag, e.g. `--with-pmod-gpio` on Arty) | `machine_pin.c` |
 | `machine.SPI`           | `CSR_SPI_BASE` / `CSR_SPI0_BASE` (`--with-spi`) | `machine_hw_spi.c` |
 | `machine.Timer`         | `CSR_TIMER0_BASE` (always present) | `machine_timer.c` |
 | `machine.PWM`           | `CSR_LEDS_PWM_ENABLE_ADDR` (`--with-led-chaser` + PWM) | `machine_pwm.c` |
