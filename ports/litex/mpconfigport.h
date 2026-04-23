@@ -65,14 +65,17 @@
 #ifndef MICROPY_PY_NETWORK_HOSTNAME_DEFAULT
 #define MICROPY_PY_NETWORK_HOSTNAME_DEFAULT "litex"
 #endif
-// lwIP is pumped from mp_hal_delay_ms (covers time.sleep and every
-// blocking path extmod/modlwip.c uses). Calling it from
-// MICROPY_VM_HOOK_LOOP on every bytecode hop is technically more
-// responsive but causes pathological slowdown in sim (each VM hook
-// reads ethmac CSRs + does lwIP processing under Verilator). Until
-// ETHMAC_INTERRUPT dispatch is wired, this is good enough for
-// everything the standard socket API does.
+// lwIP pumping. Two hooks:
+//  * mp_hal_delay_ms loops (covers time.sleep and any explicit delay).
+//  * MICROPY_PY_LWIP_POLL_HOOK is called from extmod/modlwip.c's
+//    poll_sockets() during every blocking socket / DNS wait, so
+//    getaddrinfo + recv + accept + connect all make progress without
+//    needing the user to insert their own time.sleep.
+// We deliberately don't hook MICROPY_VM_HOOK_LOOP — running lwIP work
+// on every VM bytecode is technically more responsive but causes
+// pathological slowdown in sim (each hop reads ethmac CSRs).
 extern void litex_lwip_poll(void);
+#define MICROPY_PY_LWIP_POLL_HOOK litex_lwip_poll();
 #define MICROPY_PORT_NETWORK_INTERFACES \
     { MP_ROM_QSTR(MP_QSTR_LAN), MP_ROM_PTR(&network_lan_type) },
 extern const struct _mp_obj_type_t network_lan_type;
