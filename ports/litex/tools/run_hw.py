@@ -108,44 +108,67 @@ def read_until(s, marker, timeout, log=None, mirror=None):
     return None
 
 
-def upload_firmware(s, firmware_bytes, base_addr, log):
-    """Send an SFL upload + jump for `firmware_bytes` to base_addr.
-    Caller must have already seen the BIOS magic and ACKed it.
-    Replicates the protocol used by litex_term --serial-boot."""
-    chunk_size = 251  # max payload that fits one SFL frame's length byte
-    written = 0
+def upload_firmware(s, firmware_bytes, base_addr, log,
+                    chunk_size=251, batch_frames=16):
+    """Batched SFL upload of `firmware_bytes` to base_addr. We send a
+    burst of `batch_frames` SFL LOAD frames in a single s.write() so
+    Python loop overhead and USB write syscalls amortise across the
+    burst, then drain all the K acks before the next burst. Same
+    trick litex_term uses to approach line rate.
+    Caller must have already ACKed the BIOS magic."""
+    sent = 0
     last_print = 0
     total = len(firmware_bytes)
     start = time.monotonic()
     sys.stderr.write(f"[run_hw] uploading {total} B "
-                     f"(~{total / 11500:.0f} s at 115200 baud)\n")
+                     f"(~{total / 11500:.0f} s at 115200 baud, "
+                     f"batches of {batch_frames})\n")
     sys.stderr.flush()
-    while written < total:
-        chunk = firmware_bytes[written : written + chunk_size]
-        payload = struct.pack(">I", base_addr + written) + chunk
-        s.write(sfl_frame(SFL_FRAME_LOAD, payload))
+    while sent < total:
+        # Build up to `batch_frames` SFL frames into one buffer.
+        burst = bytearray()
+        n_frames = 0
+        burst_start = sent
+        while sent < total and n_frames < batch_frames:
+            chunk = firmware_bytes[sent : sent + chunk_size]
+            payload = struct.pack(">I", base_addr + sent) + chunk
+            burst += sfl_frame(SFL_FRAME_LOAD, payload)
+            sent += len(chunk)
+            n_frames += 1
+        s.write(bytes(burst))
         s.flush()
-        # BIOS ACKs each frame; consume the ACK byte to flow-control.
-        # Don't mirror the per-frame K — it'd be one K per ~250 bytes,
-        # drowning out anything else in the terminal.
-        ack = read_until(s, [b"K", b"C", b"E"], timeout=5, log=log, mirror=False)
-        if ack is None:
-            sys.stderr.write(f"\n[run_hw] upload stalled at {written}/{total}\n")
+        # Now read N acks (one K per frame). They arrive interleaved
+        # with the BIOS's own throughput, so we just keep reading bytes
+        # until we've collected n_frames K's.
+        ks_seen = 0
+        deadline = time.monotonic() + 10
+        while ks_seen < n_frames and time.monotonic() < deadline:
+            n = max(s.in_waiting, 1)
+            chunk = s.read(n)
+            if not chunk:
+                continue
+            log.write(chunk)
+            log.flush()
+            for b in chunk:
+                if b == ord("K"):
+                    ks_seen += 1
+                elif b in (ord("C"), ord("E")):
+                    sys.stderr.write(
+                        f"\n[run_hw] upload {chr(b)} at {burst_start + ks_seen * chunk_size}/{total}\n")
+                    return False
+        if ks_seen < n_frames:
+            sys.stderr.write(
+                f"\n[run_hw] upload stalled — got {ks_seen}/{n_frames} acks "
+                f"in burst at {burst_start}/{total}\n")
             return False
-        if ack[-1:] != b"K":
-            # 'C' or 'E' means CRC / error — bail.
-            sys.stderr.write(f"\n[run_hw] upload {ack[-1:]!r} at {written}/{total}\n")
-            return False
-        written += len(chunk)
-        # Print every ~16 KiB. Don't gate on `written % 4096 == 0`
-        # because chunk_size=251 never lands on those boundaries.
-        if written - last_print >= 16384 or written == total:
+        # Progress every ~16 KiB.
+        if sent - last_print >= 16384 or sent == total:
             elapsed = time.monotonic() - start
-            kbps = written / max(elapsed, 0.001) / 1024
-            sys.stderr.write(f"\r[run_hw] upload {written}/{total}  "
+            kbps = sent / max(elapsed, 0.001) / 1024
+            sys.stderr.write(f"\r[run_hw] upload {sent}/{total}  "
                              f"({kbps:.1f} KiB/s, {elapsed:.1f} s)")
             sys.stderr.flush()
-            last_print = written
+            last_print = sent
     sys.stderr.write("\n")
     # Jump to the firmware.
     s.write(sfl_frame(SFL_FRAME_JUMP, struct.pack(">I", base_addr)))
