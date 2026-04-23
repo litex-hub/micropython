@@ -4,9 +4,12 @@ This document tracks the modernization of `ports/litex` against current upstream
 MicroPython, and the infrastructure (simulation feedback loop, CI) needed to
 sustain it.
 
-Work happens on the `litex-modernize` branch, which now tracks
-`upstream/master` (MicroPython 1.29). The pre-rebase state is kept on
-`litex-modernize-1.16` for anyone who needs a 1.16-based build.
+Work happens on the `litex-rebase` branch, which tracks upstream
+**MicroPython 1.28.0 stable**. Earlier in-progress branches have
+since been consolidated:
+- `litex-rebase` — active, rebased onto `v1.28.0`.
+- `litex-old` — Florent's pre-port-graft working branch (kept for archaeology).
+- `litex-modernize-backup-20260423` — exact snapshot of the pre-v1.28-rebase state.
 
 ## Starting point (2026-04)
 
@@ -142,13 +145,21 @@ Shipped:
       firmware against them. Verifies per-board breakage without
       requiring Vivado/Yosys in CI.
 
+Shipped (continued):
+- [x] Cache `~/.local` and the per-variant SoC build dir between CI
+      runs — cold install ~3 min, warm hit ~5 s.
+- [x] `digilent_arty_full` board variant exercises every ifdef-gated
+      code path (SDCard, SPIFlash, XADC, Watchdog, Ethernet) so
+      LiteX-core-API drift trips CI at build time.
+- [x] `examples_lint` job — ruff check + format-diff + ast.parse
+      over every .py under `examples/` and `test/` (caught the
+      `rsplit(maxsplit=1)` MicroPython incompatibility).
+
 Pending follow-ups:
 - [ ] Extend the CPU matrix beyond `vexriscv` (`vexriscv_smp` should
       slot in cheaply; `naxriscv` needs SBT/Scala which is too heavy).
 - [ ] Extend the board matrix beyond `digilent_arty`
       (`terasic_de0nano`, …) as we confirm they link cleanly.
-- [ ] Cache `~/.local` from `litex_setup.py --install` to cut ~3 min
-      off cold runs.
 
 ### §4 — README + feature additions
 
@@ -190,14 +201,59 @@ recipe, and frozen modules via `manifest.py` are all in place.
       RX for now; IRQ dispatch via `ETHMAC_INTERRUPT` is a follow-up.
       Sim test in `test/test_lan.py`; `tap0` host setup required for
       packet flow.
+- [x] `litex.SPIFlash()` — memory-mapped LiteSPI flash as a block
+      device (64 KiB block size to match LiteSPI's native sector
+      erase). `uos.VfsFat.mkfs(f) + os.mount('/flash')` for SD-less
+      persistent storage. Verified end-to-end on Arty; demo in
+      `examples/spiflash_counter.py`.
+- [x] `machine.WDT(timeout=ms)` — hardware watchdog over LiteX's
+      Watchdog core (enabled via `--with-watchdog`). Standard
+      `.feed()` API; no `.deinit()` (matches stm32/esp32 convention
+      of "armed = armed").
+- [x] `machine.UART.read()` honours `timeout=` / `timeout_char=` — 
+      no more block-forever footgun on UART reads.
+- [x] `machine.Pin.irq(handler, trigger)` bridges LiteX GPIO's
+      per-pin EventManager to Python callbacks via a dedicated
+      dispatcher (one CPU IRQ, many pins). Requires GPIO built
+      `with_irq=True`. **Beta — compiles on any SoC, not verified on
+      hardware yet because the stock digilent_arty target builds GPIO
+      without IRQ.**
+- [x] `machine.I2C` over LiteI2C master. `scan / writeto / readfrom`
+      implemented byte-chunked over single-word (≤4 B) LiteI2C
+      transactions. **Beta — compiles when a SoC calls
+      `add_i2c_master()`, not verified on hardware yet; stock
+      digilent_arty doesn't route I2C pads.**
+- [x] `machine.unique_id()` alias to `machine.identifier()` — upstream
+      MicroPython-standard name for the same IDENTIFIER_MEM bytes.
+- [x] `tools/run_hw.py` — single-fd end-to-end HW driver: load
+      bitstream (openFPGALoader), spam Q to abort auto-boot, drive
+      `serialboot` from the litex> prompt, SFL-upload firmware with
+      batched frames, use MicroPython's raw-paste flow control for
+      script injection at 1 Mbps (vs the original 115200 block-and-
+      hope paste).
+- [x] `make test-hw` target drives the 4-test Arty hardware suite
+      (`test_hw_arty` + sdcard + spiflash + wdt) in one invocation.
+      Skeleton tests for the two beta drivers (`test_hw_arty_i2c`,
+      `test_hw_arty_pin_irq`) hasattr-gate the feature and skip
+      cleanly when the CSRs aren't present.
 
 **Feature additions, still pending** (rough priority order):
+- `litex.LiteScope` — turn the REPL into an interactive logic-analyzer
+  when the SoC includes LiteScopeAnalyzer. Requires a custom target
+  that picks probe signals, so out of scope until someone needs it on
+  a specific bring-up.
+- Hardware-verify and polish the beta `machine.Pin.irq()` and
+  `machine.I2C` drivers on a SoC that actually exposes those cores.
+  LiteI2C in particular would benefit from multi-word chained
+  transfers (currently byte-chunked, one start/stop per 4 bytes).
 - `litex.SATA`, `litex.PCIe` BAR access — niche but LiteX-differentiating.
 - LUNA USB-CDC ACM as a `machine.UART` backend — opportunity for boards
   with a USB phy now that LiteX ships `usb_acm` via LUNA (Mar 2026).
 - Ship a real frozen-module `manifest.py` for at least one example
   board (the empty stub is in place; this is the per-board freeze
   recipe + wiring through `FROZEN_MANIFEST`).
+- Hardware testing infrastructure reused for an automated nightly run
+  on the physical Arty (beyond the on-demand `make test-hw` flow).
 
 > Note: an earlier iteration of this list mentioned a "LiteADC" core to
 > wrap. There is no such core in upstream LiteX or under `litex-hub`;
