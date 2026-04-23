@@ -533,6 +533,11 @@ function ci_litex_build_board {
         --libc-mode=full \
         --output-dir="$out" \
         "$@"
+    # Wipe ports/litex/build so stale .o files from a previous variant
+    # (different MICROPY_VFS_FAT / MICROPY_PY_LWIP values) don't get
+    # relinked against the new SoC's headers. ci_litex_build_sim does
+    # the same for the same reason.
+    rm -rf ports/litex/build
     make ${MAKEOPTS} -C ports/litex BUILD_DIRECTORY="$out"
 }
 
