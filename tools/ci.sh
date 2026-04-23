@@ -448,14 +448,27 @@ function ci_litex_build_board_digilent_arty {
     ci_litex_build_board digilent_arty
 }
 
+function ci_litex_build_board_digilent_arty_sdcard {
+    # Same SoC target, but with --with-sdcard --sdcard-adapter=digilent so
+    # the build pulls in liblitesdcard + machine_sdcard.c + extmod's
+    # oofatfs and exercises the MICROPY_VFS_FAT path. Catches API drift
+    # in LiteX's libliteSDcard CSRs at build time (the kind of breakage
+    # we hit going from r[3]>>16 to r[0]>>16 RCA decode).
+    ci_litex_build_board digilent_arty digilent_arty_sdcard \
+        --with-sdcard --sdcard-adapter=digilent
+}
+
 function ci_litex_build_board {
     set -x
-    # Usage: ci_litex_build_board <board>
+    # Usage: ci_litex_build_board <board> [out_tag] [extra_target_args...]
     # Generates the board's SoC headers via litex_boards (no FPGA toolchain
     # required) and builds MicroPython firmware against them. Flashing is
-    # out of scope.
-    local board=${1:-digilent_arty}
-    local out=/tmp/litex_mpy_${board}
+    # out of scope. `out_tag` (default = `<board>`) lets two variants of
+    # the same board target live under different /tmp dirs / cache keys.
+    local board=$1
+    local out_tag=${2:-$board}
+    local out=/tmp/litex_mpy_${out_tag}
+    shift 2 || shift $#
     # --build triggers the SoC instantiation (which writes the software
     # headers and builds the LiteX libraries we link against);
     # --no-compile-gateware skips the FPGA toolchain since CI doesn't
@@ -465,7 +478,8 @@ function ci_litex_build_board {
         --build \
         --no-compile-gateware \
         --libc-mode=full \
-        --output-dir="$out"
+        --output-dir="$out" \
+        "$@"
     make ${MAKEOPTS} -C ports/litex BUILD_DIRECTORY="$out"
 }
 
