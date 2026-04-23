@@ -16,16 +16,20 @@ endef
 $(error $(ERROR_MSG))
 endif
 
-LIBLITESDCARD_DIRECTORY = liblitesdcard
-
 # Import LiteX's variables.mak
 include $(BUILD_DIRECTORY)/software/include/generated/variables.mak
+
+# Pin LIBLITESDCARD_DIRECTORY to the port-bundled copy AFTER variables.mak
+# (which would otherwise point at LiteX's bundled libliteSDcard, whose
+# API has drifted: machine_sdcard.c calls sdcard_numblocks() which only
+# exists in our port's liblitesdcard/sdcard.c).
+LIBLITESDCARD_DIRECTORY = liblitesdcard
 
 # Include the core environment definitions; this will set $(TOP).
 include ../../py/mkenv.mk
 
 #set misc variables (used by py.mk)
-MICROPY_VFS_FAT = $(shell egrep "(CSR_SDCORE_BASE|CSR_SPISDCARD_BASE)" ${BUILD_DIRECTORY}/software/include/generated/csr.h | wc -l)
+MICROPY_VFS_FAT = $(shell egrep "(CSR_SDCARD_BASE|CSR_SDCORE_BASE|CSR_SPISDCARD_BASE)" ${BUILD_DIRECTORY}/software/include/generated/csr.h | wc -l)
 #$(info $$MICROPY_VFS_FAT is: ${MICROPY_VFS_FAT})
 
 # Detect LiteEth presence in the SoC and pull in lwIP only when it's there.
@@ -50,10 +54,9 @@ CFLAGS_MOD += -DFFCONF_H=\"$(OOFATFS_DIR)/ffconf.h\"
 
 ifeq ($(MICROPY_VFS_FAT),1)
 CFLAGS_MOD += -DMICROPY_VFS_FAT=1
-SRC_MOD += $(addprefix $(OOFATFS_DIR)/,\
-	ff.c \
-	ffunicode.c \
-	)
+# extmod/extmod.mk already pulls in ff.c + ffunicode.c when
+# MICROPY_VFS_FAT=1 — don't add them again here or the link gets
+# duplicate symbols for f_fdisk / ff_uni2oem / ff_wtoupper / etc.
 endif
 CFLAGS += $(CFLAGS_MOD)
 
@@ -108,8 +111,13 @@ INC += -I$(BUILD_DIRECTORY)/software/libc
 # $(LIBS) comes from $(BUILD_DIRECTORY)/software/include/generated/variables.mak
 # and is the space-separated list of LiteX libraries for this SoC
 # (e.g. "libc libcompiler_rt libbase libfatfs liblitespi ...").
-LITEX_LIB_DIRS = $(foreach lib,$(LIBS),-L$(BUILD_DIRECTORY)/software/$(lib))
-LITEX_LIB_LDFLAGS = $(LIBS:lib%=-l%)
+# Filter out libraries we ship our own copies of (liblitesdcard,
+# libfatfs) — keeping them in the link list would produce
+# "multiple definition" errors against our port-bundled
+# liblitesdcard/sdcard.c and lib/oofatfs/ff.c.
+LITEX_LIBS = $(filter-out libfatfs liblitesdcard,$(LIBS))
+LITEX_LIB_DIRS = $(foreach lib,$(LITEX_LIBS),-L$(BUILD_DIRECTORY)/software/$(lib))
+LITEX_LIB_LDFLAGS = $(LITEX_LIBS:lib%=-l%)
 
 LDFLAGS += -nostdlib -nodefaultlibs
 LDFLAGS += -Wl,--no-dynamic-linker -Wl,--build-id=none
