@@ -365,11 +365,18 @@ function ci_litex_setup {
         python3-pip
     # litex_setup.py clones LiteX + LiteX-Boards + cores into ~/litex and
     # pip-installs them into the user site (~/.local). Both directories
-    # are cached by the workflow's actions/cache step, so on a warm
-    # cache we just put ~/.local/bin back on $PATH and skip the slow
-    # clone/install.
-    if [ -x "$HOME/.local/bin/litex_term" ] && [ -d "$HOME/litex/litex" ]; then
-        echo "ci_litex_setup: cache hit — skipping litex_setup.py"
+    # are cached by the workflow's actions/cache step.
+    #
+    # Skip re-install only on an *exact* cache hit — the workflow sets
+    # LITEX_CACHE_HIT from steps.cache-litex.outputs.cache-hit. A
+    # restore-keys fallback (older partial match) counts as a miss, so
+    # a fresh install re-runs litex_setup.py and picks up the current
+    # upstream master — avoids the "arty_full fails because the cached
+    # LiteX is weeks stale" class of bug.
+    if [ "${LITEX_CACHE_HIT:-false}" = "true" ] \
+        && [ -x "$HOME/.local/bin/litex_term" ] \
+        && [ -d "$HOME/litex/litex" ]; then
+        echo "ci_litex_setup: exact cache hit — skipping litex_setup.py"
     else
         mkdir -p $HOME/litex
         pushd $HOME/litex

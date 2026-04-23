@@ -90,6 +90,8 @@ jobs:
           soc-${{ matrix.cpu }}-${{ matrix.variant }}-
     - name: Install packages
       run: tools/ci.sh litex_setup
+      env:
+        LITEX_CACHE_HIT: ${{ steps.cache-litex.outputs.cache-hit }}
     - name: Build firmware and run sim tests (${{ matrix.cpu }} / ${{ matrix.variant }})
       run: tools/ci.sh litex_build_sim_${{ matrix.variant }}
     - name: Dump sim log on failure
@@ -131,5 +133,7 @@ jobs:
           board-${{ matrix.board }}-
     - name: Install packages
       run: tools/ci.sh litex_setup
+      env:
+        LITEX_CACHE_HIT: ${{ steps.cache-litex.outputs.cache-hit }}
     - name: Build firmware for ${{ matrix.board }}
       run: tools/ci.sh litex_build_board_${{ matrix.board }}
