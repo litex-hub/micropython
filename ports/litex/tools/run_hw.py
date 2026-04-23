@@ -1,89 +1,238 @@
 #!/usr/bin/env python3
 #
-# Drive a real LiteX board over its UART to run MicroPython tests.
+# Drive a real LiteX board over its UART to upload MicroPython firmware
+# and run tests against the live REPL — all from a single open serial
+# fd so DTR/RTS never toggle (which on Arty-class boards reaches the
+# FPGA reset line and would wipe SDRAM between upload and test).
 #
-# Mirror of tools/run_sim.py but for hardware: connects to the board's
-# serial port (default /dev/ttyUSB1, the FTDI's second channel on the
-# Digilent Arty), enters raw REPL via tools/pyboard.py, runs each test
-# script, prints stdout, exits non-zero on the first failure.
+# Typical usage from ports/litex/, with the Arty plugged into
+# /dev/ttyUSB1 (FTDI channel 1):
 #
-# Typical usage from ports/litex/:
+#     ports/litex/tools/run_hw.py \
+#         --bitstream /tmp/arty_eth/gateware/digilent_arty.bit \
+#         --firmware  ports/litex/build/firmware.bin \
+#         ports/litex/test/test_hw_arty.py
 #
-#     # 1) load the bitstream + firmware once (see README)
-#     # 2) test/test_hw_arty.py covers the new functionality:
-#     tools/run_hw.py --port /dev/ttyUSB1 test/test_hw_arty.py
+# Drop --bitstream when the FPGA is already loaded with a fresh
+# bitstream and the BIOS is in its 5-second serialboot wait. Drop
+# --firmware when the MicroPython REPL is already up.
 #
 # Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
 # SPDX-License-Identifier: BSD-2-Clause
 
 import argparse
-import importlib.util
 import os
+import struct
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 PORT_DIR = Path(__file__).resolve().parent.parent
-TOP = PORT_DIR.parent.parent
-PYBOARD = TOP / "tools" / "pyboard.py"
+
+# LiteX BIOS serialboot magic string and our reply (note trailing
+# newlines — both directions). Matches litex/tools/litex_term.py.
+SFL_MAGIC_REQ = b"sL5DdSMmkekro\n"
+SFL_MAGIC_ACK = b"z6IHG7cYDID6o\n"
+# SFL (Serial File Loader) command codes.
+SFL_FRAME_LOAD = 0x01
+SFL_FRAME_JUMP = 0x02
+SFL_FRAME_ABORT = 0x00
 
 
-def run_one(port, baudrate, script):
-    """Run one test script on the board via pyboard.py. Returns True on pass."""
-    cmd = [
-        sys.executable,
-        str(PYBOARD),
-        "--device",
-        port,
-        "--baudrate",
-        str(baudrate),
-        str(script),
-    ]
-    print(f"[run_hw] {script}", file=sys.stderr)
-    proc = subprocess.run(cmd, capture_output=True, text=True)
-    sys.stdout.write(proc.stdout)
-    if proc.returncode != 0:
-        sys.stderr.write(proc.stderr)
-    return proc.returncode == 0
+def crc16(data):
+    """CCITT-FALSE CRC-16, the variant LiteX BIOS verifies for SFL frames."""
+    crc = 0
+    for b in data:
+        crc ^= b << 8
+        for _ in range(8):
+            if crc & 0x8000:
+                crc = (crc << 1) ^ 0x1021
+            else:
+                crc = crc << 1
+            crc &= 0xFFFF
+    return crc
+
+
+def sfl_frame(cmd, payload):
+    length = len(payload)
+    body = bytes([cmd]) + payload
+    crc = crc16(body)
+    return bytes([length]) + struct.pack(">H", crc) + body
+
+
+def open_port(device, baudrate):
+    import serial
+
+    s = serial.Serial(device, baudrate=baudrate, timeout=0.1)
+    return s
+
+
+def read_until(s, marker, timeout, log=None):
+    deadline = time.monotonic() + timeout
+    buf = b""
+    while time.monotonic() < deadline:
+        chunk = s.read(4096)
+        if chunk:
+            buf += chunk
+            if log is not None:
+                log.write(chunk)
+                log.flush()
+            if isinstance(marker, (bytes, bytearray)):
+                if marker in buf:
+                    return buf
+            else:
+                if any(m in buf for m in marker):
+                    return buf
+    return None
+
+
+def upload_firmware(s, firmware_bytes, base_addr, log):
+    """Send an SFL upload + jump for `firmware_bytes` to base_addr.
+    Caller must have already seen SERIALBOOT_MAGIC and ACKed it.
+    Replicates the protocol used by litex_term --serial-boot."""
+    chunk_size = 251  # max payload that fits one SFL frame's length byte
+    written = 0
+    while written < len(firmware_bytes):
+        chunk = firmware_bytes[written : written + chunk_size]
+        payload = struct.pack(">I", base_addr + written) + chunk
+        s.write(sfl_frame(SFL_FRAME_LOAD, payload))
+        # BIOS ACKs each frame; consume the ACK byte to flow-control.
+        ack = read_until(s, [b"K", b"C", b"E"], timeout=5, log=log)
+        if ack is None:
+            return False
+        if ack[-1:] != b"K":
+            # 'C' or 'E' means CRC / error — bail.
+            return False
+        written += len(chunk)
+        if written % 4096 == 0:
+            sys.stderr.write(f"\r[run_hw] upload {written}/{len(firmware_bytes)}")
+            sys.stderr.flush()
+    sys.stderr.write(f"\r[run_hw] upload {written}/{len(firmware_bytes)}\n")
+    # Jump to the firmware.
+    s.write(sfl_frame(SFL_FRAME_JUMP, struct.pack(">I", base_addr)))
+    return True
+
+
+def raw_repl_send(s, script, exec_timeout, log):
+    """Execute `script` via raw REPL on the open serial port `s`.
+    Returns (stdout_bytes, stderr_bytes) or (None, error_str)."""
+    # Make sure the friendly REPL is responsive: ctrl-C twice then
+    # ctrl-A to enter raw REPL.
+    s.write(b"\r\x03\x03")
+    time.sleep(0.2)
+    s.read(8192)  # drain
+    s.write(b"\r\x01")
+    if read_until(s, b"raw REPL; CTRL-B to exit\r\n>", timeout=5, log=log) is None:
+        return None, "did not enter raw REPL"
+    s.write(script.encode() if isinstance(script, str) else script)
+    s.write(b"\x04")
+    if read_until(s, b"OK", timeout=10, log=log) is None:
+        return None, "did not see OK after script paste"
+    out = read_until(s, b"\x04", timeout=exec_timeout, log=log)
+    if out is None:
+        return None, "stdout EOT timeout"
+    out = out[: out.rindex(b"\x04")]
+    err = read_until(s, b"\x04", timeout=5, log=log)
+    if err is None:
+        return out, "stderr EOT timeout"
+    err = err[: err.rindex(b"\x04")]
+    read_until(s, b">", timeout=5, log=log)  # next prompt
+    return out, err
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Run MicroPython tests on a real LiteX board over UART.",
-    )
-    parser.add_argument(
-        "tests", nargs="+", help="Python test files to run on the board."
-    )
+    parser = argparse.ArgumentParser()
+    parser.add_argument("tests", nargs="+", help="Python test files to run.")
     parser.add_argument(
         "--port",
         default=os.environ.get("LITEX_HW_PORT", "/dev/ttyUSB1"),
-        help="Serial device the MicroPython REPL is on "
-        "(default: /dev/ttyUSB1 — Arty FTDI channel 1; override "
-        "via LITEX_HW_PORT).",
+        help="MicroPython REPL serial device (default /dev/ttyUSB1).",
+    )
+    parser.add_argument("--baudrate", type=int, default=115200)
+    parser.add_argument(
+        "--bitstream",
+        default=None,
+        help="If set, openFPGALoader-load this bitstream after the "
+        "serial port is open. Required when the FPGA is empty or the "
+        "BIOS is in console state — the BIOS serialboot window only "
+        "lasts ~5 s.",
     )
     parser.add_argument(
-        "--baudrate",
-        type=int,
-        default=115200,
-        help="Serial baudrate (default 115200, matches LiteX UART default).",
+        "--openfpgaloader-board",
+        default="arty",
+        help="-b argument to openFPGALoader (default 'arty').",
     )
+    parser.add_argument(
+        "--firmware",
+        default=None,
+        help="If set, SFL-upload this firmware to --kernel-adr after "
+        "the BIOS prints its serialboot prompt.",
+    )
+    parser.add_argument("--kernel-adr", type=lambda s: int(s, 0), default=0x40000000)
+    parser.add_argument("--log", default="/tmp/run_hw.log")
     args = parser.parse_args()
 
-    if not PYBOARD.is_file():
-        sys.exit(f"pyboard.py not found at {PYBOARD}")
-    if importlib.util.find_spec("serial") is None:
+    try:
+        import serial  # noqa: F401
+    except ImportError:
         sys.exit("pyserial not installed (pip install pyserial)")
+
     if not Path(args.port).exists():
-        sys.exit(
-            f"serial port {args.port} not found — is the board powered up "
-            "and the FTDI driver loaded?"
-        )
+        sys.exit(f"serial port {args.port} not found")
+
+    # Disable HUPCL so closing the fd at the end doesn't toggle
+    # DTR/RTS — keeps MicroPython running for any follow-up session.
+    subprocess.run(["stty", "-F", args.port, "-hupcl"], check=False)
+
+    log = open(args.log, "wb")
+    s = open_port(args.port, args.baudrate)
+
+    # Optionally load the bitstream now that the serial port is open.
+    if args.bitstream:
+        print(f"[run_hw] loading {args.bitstream}", file=sys.stderr)
+        rc = subprocess.run(
+            ["openFPGALoader", "-b", args.openfpgaloader_board, args.bitstream],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        ).returncode
+        if rc != 0:
+            sys.exit(f"openFPGALoader failed (exit {rc})")
+
+    if args.firmware:
+        print(f"[run_hw] waiting for BIOS serialboot prompt", file=sys.stderr)
+        if read_until(s, SFL_MAGIC_REQ, timeout=30, log=log) is None:
+            sys.exit("[run_hw] BIOS serialboot magic not seen — did the bitstream load?")
+        # Acknowledge and start uploading.
+        s.write(SFL_MAGIC_ACK)
+        firmware_bytes = open(args.firmware, "rb").read()
+        if not upload_firmware(s, firmware_bytes, args.kernel_adr, log):
+            sys.exit("[run_hw] firmware upload failed")
+        if read_until(s, b"MicroPython", timeout=30, log=log) is None:
+            sys.exit("[run_hw] MicroPython REPL did not appear after upload")
+        print("[run_hw] REPL up", file=sys.stderr)
 
     failures = []
     for test in args.tests:
-        if not run_one(args.port, args.baudrate, test):
+        print(f"[run_hw] {test}", file=sys.stderr)
+        script = Path(test).read_text()
+        out, err = raw_repl_send(s, script, exec_timeout=120, log=log)
+        if out is None:
+            sys.stderr.write(f"  ! {err}\n")
+            failures.append(test)
+            continue
+        sys.stdout.write(out.decode("utf-8", errors="replace"))
+        sys.stdout.flush()
+        if isinstance(err, str):
+            # raw_repl_send returns a str when the stderr EOT read
+            # itself failed (transient, harmless if the test printed
+            # everything we expected). Surface it but don't fail.
+            sys.stderr.write(f"  ! {err}\n")
+        elif err:
+            sys.stderr.write(err.decode("utf-8", errors="replace"))
             failures.append(test)
 
+    log.close()
+    s.close()
     if failures:
         print(f"[run_hw] FAILED: {len(failures)}/{len(args.tests)}", file=sys.stderr)
         for t in failures:
