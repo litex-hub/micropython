@@ -278,6 +278,23 @@ static mp_obj_t machine_uart_irq(size_t n_args, const mp_obj_t *args) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(machine_uart_irq_obj, 2, 3, machine_uart_irq);
 
+// uart.deinit() — release the UART's IRQ slot (if registered) and mask
+// peripheral events. Idempotent; safe to call multiple times. Note that
+// LiteX UART objects are static singletons (one per SoC-built UART) so
+// there's no allocation to free — calling deinit() simply un-arms the
+// IRQ path so the next UART(N) call returns a quiescent object.
+static mp_obj_t machine_uart_deinit(mp_obj_t self_in) {
+    machine_uart_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    uart_reg_write(self, LITEX_UART_EV_ENABLE_OFFSET, 0);
+    if (self->irq_bit >= 0) {
+        litex_isr_register(self->irq_bit,
+            self->csr_base + LITEX_UART_EV_PENDING_OFFSET,
+            mp_const_none, mp_const_none);
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(machine_uart_deinit_obj, machine_uart_deinit);
+
 static mp_uint_t machine_uart_ioctl(mp_obj_t self_in, mp_uint_t request, uintptr_t arg, int *errcode) {
     machine_uart_obj_t *self = MP_OBJ_TO_PTR(self_in);
     mp_uint_t ret;
@@ -301,6 +318,7 @@ static mp_uint_t machine_uart_ioctl(mp_obj_t self_in, mp_uint_t request, uintptr
 
 static const mp_rom_map_elem_t machine_uart_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_any),      MP_ROM_PTR(&machine_uart_any_obj) },
+    { MP_ROM_QSTR(MP_QSTR_deinit),   MP_ROM_PTR(&machine_uart_deinit_obj) },
     // Stream protocol methods (read/readinto/readline/write) are injected
     // via MP_STREAM_ROM_OBJ below.
     { MP_ROM_QSTR(MP_QSTR_read),     MP_ROM_PTR(&mp_stream_read_obj) },
