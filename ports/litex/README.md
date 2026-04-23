@@ -5,16 +5,19 @@ MicroPython on LiteX — Python Meets FPGA Power
 
 **Write Python. Build SoCs. Drive real silicon — interactively.**
 
-LiteX lets you assemble custom SoCs on any FPGA, mixing and matching
-CPUs (VexRiscv, NaxRiscv, Mor1kx, …), buses, and over a hundred
-peripheral cores. This port drops MicroPython on top, so the same Python
-script that prints `'hello world'` from a REPL can also drive a 4-bit
-SDIO controller, light up a 1080p framebuffer, or pull DHCP off Gigabit
-Ethernet. **Same Python scripts across
-[150+ LiteX-supported boards](https://github.com/litex-hub/litex-boards)** —
-the firmware itself is rebuilt per SoC variant (CSR addresses are baked
-in at compile time), but the build is a single `make` against the SoC's
-generated headers, and the user-facing API is identical everywhere.
+LiteX lets you assemble custom SoCs on any FPGA — mix and match CPUs
+(VexRiscv, NaxRiscv, Mor1kx, …), buses, and over a hundred peripheral
+cores.
+
+This port drops MicroPython on top. The same Python script that prints
+`'hello world'` from a REPL can also drive a 4-bit SDIO controller,
+light up a 1080p framebuffer, or pull DHCP off Gigabit Ethernet.
+
+**Same scripts run across
+[150+ LiteX-supported boards](https://github.com/litex-hub/litex-boards).**
+The firmware binary is rebuilt per SoC (CSR addresses are baked in at
+compile time), but it's one `make` against the SoC's generated headers
+— and the user-facing API is identical everywhere.
 
 Tracks **upstream MicroPython 1.28** (latest stable).
 
