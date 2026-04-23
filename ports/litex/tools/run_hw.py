@@ -68,7 +68,21 @@ def open_port(device, baudrate):
     return s
 
 
-def read_until(s, marker, timeout, log=None):
+MIRROR = True  # set False by --quiet
+
+
+def read_until(s, marker, timeout, log=None, mirror=None):
+    """Read from the serial port until `marker` (or any in a list of
+    markers) appears in the buffer. Every byte received goes both to
+    `log` (a file we keep for post-mortem) and — if `mirror` is True —
+    to stderr in real time, so the user sees BIOS output, MicroPython
+    REPL banner, and test prints as they happen.
+
+    `mirror` defaults to the module-level MIRROR (toggled by --quiet)
+    but call sites that produce noisy per-byte ACK traffic can force
+    it off by passing mirror=False."""
+    if mirror is None:
+        mirror = MIRROR
     deadline = time.monotonic() + timeout
     buf = b""
     while time.monotonic() < deadline:
@@ -78,6 +92,9 @@ def read_until(s, marker, timeout, log=None):
             if log is not None:
                 log.write(chunk)
                 log.flush()
+            if mirror:
+                sys.stderr.buffer.write(chunk)
+                sys.stderr.buffer.flush()
             if isinstance(marker, (bytes, bytearray)):
                 if marker in buf:
                     return buf
@@ -98,7 +115,9 @@ def upload_firmware(s, firmware_bytes, base_addr, log):
         payload = struct.pack(">I", base_addr + written) + chunk
         s.write(sfl_frame(SFL_FRAME_LOAD, payload))
         # BIOS ACKs each frame; consume the ACK byte to flow-control.
-        ack = read_until(s, [b"K", b"C", b"E"], timeout=5, log=log)
+        # Don't mirror the per-frame K — it'd be one K per ~250 bytes,
+        # drowning out anything else in the terminal.
+        ack = read_until(s, [b"K", b"C", b"E"], timeout=5, log=log, mirror=False)
         if ack is None:
             return False
         if ack[-1:] != b"K":
@@ -171,7 +190,16 @@ def main():
     )
     parser.add_argument("--kernel-adr", type=lambda s: int(s, 0), default=0x40000000)
     parser.add_argument("--log", default="/tmp/run_hw.log")
+    parser.add_argument(
+        "-q", "--quiet",
+        action="store_true",
+        help="Don't mirror serial traffic (BIOS output, REPL prints, "
+        "live test stdout) to stderr. Use this in CI or when piping "
+        "stdout. The full transcript is still captured in --log.",
+    )
     args = parser.parse_args()
+    global MIRROR
+    MIRROR = not args.quiet
 
     try:
         import serial  # noqa: F401
@@ -220,8 +248,12 @@ def main():
             sys.stderr.write(f"  ! {err}\n")
             failures.append(test)
             continue
-        sys.stdout.write(out.decode("utf-8", errors="replace"))
-        sys.stdout.flush()
+        if not MIRROR:
+            # In quiet mode the live stream is suppressed, so emit the
+            # captured stdout once at the end. With MIRROR on the user
+            # already saw it streaming.
+            sys.stdout.write(out.decode("utf-8", errors="replace"))
+            sys.stdout.flush()
         if isinstance(err, str):
             # raw_repl_send returns a str when the stderr EOT read
             # itself failed (transient, harmless if the test printed
