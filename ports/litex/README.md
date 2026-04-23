@@ -308,63 +308,53 @@ would wipe SDRAM between upload and test.
 #    - python3-pyserial (for tools/run_hw.py)
 
 # 1) Generate the SoC + synthesize the bitstream (~10–15 min on Vivado).
-#    --with-ethernet / --with-xadc / --timer-uptime turn on the cores
-#    test_hw_arty.py exercises.
+#    Enable every core the hardware tests exercise so a single
+#    bitstream covers all of them. With a Digilent PmodSD plugged
+#    into connector JD and a FAT/FAT32 microSD inserted, the SDCard
+#    test will run too.
 python3 -m litex_boards.targets.digilent_arty \
     --build \
     --with-ethernet \
     --with-xadc \
     --timer-uptime \
+    --with-sdcard --sdcard-adapter=digilent \
     --cpu-type=vexriscv \
     --libc-mode=full \
-    --output-dir=/tmp/arty_eth
+    --output-dir=/tmp/arty_full
 
-# 2) Build the MicroPython firmware against the same SoC.
-make -C ports/litex BUILD_DIRECTORY=/tmp/arty_eth -j$(nproc)
+# 2) Build the MicroPython firmware against the same SoC. CSR base
+#    addresses are baked in at compile time, so firmware and SoC
+#    must match — re-run this step every time you switch SoC variants.
+make -C ports/litex BUILD_DIRECTORY=/tmp/arty_full -j$(nproc)
 
 # 3) One shot: load the bitstream, upload firmware, drop into raw
 #    REPL, run the tests. /dev/ttyUSB1 is the default UART;
 #    ttyUSB0 is the JTAG channel.
 ports/litex/tools/run_hw.py \
-    --bitstream /tmp/arty_eth/gateware/digilent_arty.bit \
+    --bitstream /tmp/arty_full/gateware/digilent_arty.bit \
     --firmware  ports/litex/build/firmware.bin \
-    ports/litex/test/test_hw_arty.py
+    ports/litex/test/test_hw_arty.py \
+    ports/litex/test/test_hw_arty_sdcard.py
 ```
 
 Skip `--bitstream` when the FPGA is already loaded with a fresh
 bitstream and the BIOS is in its console; skip `--firmware` when
-the MicroPython REPL is already up.
+the MicroPython REPL is already up. Drop the SDCard test from the
+arg list if you don't have a PmodSD attached.
 
 `test/test_hw_arty.py` covers, end to end on real silicon: CSR
 read/write, `litex.LED` blink, XADC temperature + vccint, timer IRQ
 → Python callback dispatch, and `network.LAN(0)` DHCP + DNS + a
-plain HTTP GET against the LAN. The FTDI defaults match Arty's
-factory wiring; override with `LITEX_HW_PORT=/dev/ttyUSBn` for other
-serial devices.
+plain HTTP GET against the LAN. `test/test_hw_arty_sdcard.py` covers
+`machine.SDCard()`, `ioctl(BLOCK_SIZE/COUNT)`, `uos.mount('/sd')`,
+and a write+read+remove file round-trip through FatFs + the SDCard
+block driver — it does *not* mkfs (so any existing data on the card
+is preserved). `run_hw.py` pulses `Q` during the BIOS boot wait so
+a leftover `boot.json` on the card doesn't auto-execute before we
+can drop into the console.
 
-### SDCard
-
-For the SD round-trip test, generate the SoC with
-`--with-sdcard --sdcard-adapter=digilent` (a Digilent PmodSD on
-connector JD), insert a FAT/FAT32-formatted microSD, and run:
-
-```bash
-python3 -m litex_boards.targets.digilent_arty \
-    --build --with-sdcard --sdcard-adapter=digilent \
-    --cpu-type=vexriscv --libc-mode=full --output-dir=/tmp/arty_sd
-make -C ports/litex BUILD_DIRECTORY=/tmp/arty_sd -j$(nproc)
-ports/litex/tools/run_hw.py \
-    --bitstream /tmp/arty_sd/gateware/digilent_arty.bit \
-    --firmware  ports/litex/build/firmware.bin \
-    ports/litex/test/test_hw_arty_sdcard.py
-```
-
-The test exercises `machine.SDCard()`, `ioctl(BLOCK_SIZE/COUNT)`,
-`uos.mount('/sd')`, and a write+read+remove file round-trip through
-FatFs + the SDCard block driver. It does *not* mkfs (so any existing
-data on the card is preserved). `run_hw.py` pulses `Q` during the
-BIOS boot wait so a leftover `boot.json` on the card doesn't
-auto-execute before we can drop into the console.
+The FTDI defaults match Arty's factory wiring; override with
+`LITEX_HW_PORT=/dev/ttyUSBn` for other serial devices.
 
 Supported hardware
 ------------------
