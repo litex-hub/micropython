@@ -227,9 +227,13 @@ static mp_obj_t machine_uart_irq(size_t n_args, const mp_obj_t *args) {
         // Mask events at the peripheral first so we don't get one last IRQ
         // between the unregister and the actual mask.
         uart_reg_write(self, LITEX_UART_EV_ENABLE_OFFSET, 0);
+        // Owner is unused on the unregister path (handler == None), but
+        // pass mp_const_none rather than MP_OBJ_NULL — MP_OBJ_NULL is
+        // an "uninitialised" sentinel and confuses readers; mp_const_none
+        // is the explicit "no Python value here" object.
         litex_isr_register(self->irq_bit,
             self->csr_base + LITEX_UART_EV_PENDING_OFFSET,
-            mp_const_none, MP_OBJ_NULL);
+            mp_const_none, mp_const_none);
     } else {
         litex_isr_register(self->irq_bit,
             self->csr_base + LITEX_UART_EV_PENDING_OFFSET,

@@ -65,9 +65,11 @@ typedef enum {
     GPIO_MODE_INPUT_OUTPUT_OD = 2,
 } GPIO_MODE; // should match CSR constants
 
-typedef mp_hal_pin_obj_t t, gpio_num_t;
+// gpio_num_t kept for ESP32 compatibility (this file's heritage); on
+// LiteX it's just an alias for the small-int pin id.
+typedef mp_hal_pin_obj_t gpio_num_t;
 
-static inline void gpio_set_direction(t id, GPIO_MODE mode) {
+static inline void gpio_set_direction(gpio_num_t id, GPIO_MODE mode) {
     switch (mode)
     {
         case GPIO_MODE_INPUT:
@@ -84,26 +86,26 @@ static inline void gpio_set_direction(t id, GPIO_MODE mode) {
     }
 }
 
-static inline bool gpio_get_level(t id) {
+static inline bool gpio_get_level(gpio_num_t id) {
     return mp_hal_pin_read(id);
 }
-static inline void gpio_set_level(t id, bool value) {
+static inline void gpio_set_level(gpio_num_t id, bool value) {
     mp_hal_pin_write(id, value);
 }
-static inline void gpio_pulldown_en(t id) {
+static inline void gpio_pulldown_en(gpio_num_t id) {
     mp_raise_ValueError(MP_ERROR_TEXT("Pulldown not supported"));
 }
-static inline void gpio_pulldown_dis(t id) {
+static inline void gpio_pulldown_dis(gpio_num_t id) {
 }
-static inline void gpio_pullup_en(t id) {
+static inline void gpio_pullup_en(gpio_num_t id) {
     mp_raise_ValueError(MP_ERROR_TEXT("Pullup not supported"));
 }
-static inline void gpio_pullup_dis(t id) {
+static inline void gpio_pullup_dis(gpio_num_t id) {
 }
-static inline void gpio_hold_en(t id) {
+static inline void gpio_hold_en(gpio_num_t id) {
     mp_raise_ValueError(MP_ERROR_TEXT("Hold not supported"));
 }
-static inline void gpio_hold_dis(t id) {
+static inline void gpio_hold_dis(gpio_num_t id) {
 }
 #define GPIO_IS_VALID_OUTPUT_GPIO(t) true
 
@@ -168,7 +170,7 @@ void machine_pins_init(void) {
 
 void machine_pins_deinit(void) {
     for (int i = 0; i < MP_ARRAY_SIZE(machine_pin_obj); ++i) {
-        if (machine_pin_obj[i].id != (t) - 1) {
+        if (machine_pin_obj[i].id != (gpio_num_t) - 1) {
             #ifdef ESP32
             gpio_isr_handler_remove(machine_pin_obj[i].id);
             #endif
@@ -176,7 +178,7 @@ void machine_pins_deinit(void) {
     }
 }
 
-t machine_pin_get_id(const mp_obj_t pin_in) {
+gpio_num_t machine_pin_get_id(const mp_obj_t pin_in) {
     // If pin is SMALL_INT
     if (mp_obj_is_small_int(pin_in)) {
         mp_hal_pin_obj_t value = MP_OBJ_SMALL_INT_VALUE(pin_in);
@@ -478,7 +480,7 @@ static const mp_obj_type_t machine_pin_irq_type;
 
 typedef struct _machine_pin_irq_obj_t {
     mp_obj_base_t base;
-    t id;
+    gpio_num_t id;
 } machine_pin_irq_obj_t;
 
 static const machine_pin_irq_obj_t machine_pin_irq_object[] = {
