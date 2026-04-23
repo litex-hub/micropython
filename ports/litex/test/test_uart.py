@@ -6,7 +6,7 @@
 # enough to verify the CSR layout, write path, and the IRQ glue around
 # litex_isr_register.
 #
-# Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
+# Copyright (c) 2026 Florent Kermarrec <florent@enjoy-digital.fr>
 # SPDX-License-Identifier: BSD-2-Clause
 
 import machine

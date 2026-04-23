@@ -13,7 +13,7 @@
 # LiteX SoC is re-generated. We deliberately don't ship a pre-baked table —
 # it's per-SoC and must match the CSRs the firmware was compiled against.
 #
-# Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
+# Copyright (c) 2026 Florent Kermarrec <florent@enjoy-digital.fr>
 # SPDX-License-Identifier: BSD-2-Clause
 
 import argparse

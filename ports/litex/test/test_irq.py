@@ -6,7 +6,7 @@
 # litex_isr_dispatch() -> mp_sched_schedule() -> Python callback in
 # main-task context.
 #
-# Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
+# Copyright (c) 2026 Florent Kermarrec <florent@enjoy-digital.fr>
 # SPDX-License-Identifier: BSD-2-Clause
 
 import litex

@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
+// Copyright (c) 2026 Florent Kermarrec <florent@enjoy-digital.fr>
 // License: BSD-2-Clause
 //
 // machine.ADC — generic ADC wrapper for the XADC / System Monitor family.

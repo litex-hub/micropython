@@ -17,7 +17,7 @@
 # bitstream and the BIOS is in its 5-second serialboot wait. Drop
 # --firmware when the MicroPython REPL is already up.
 #
-# Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
+# Copyright (c) 2026 Florent Kermarrec <florent@enjoy-digital.fr>
 # SPDX-License-Identifier: BSD-2-Clause
 
 import argparse

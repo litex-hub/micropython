@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
+// Copyright (c) 2026 Florent Kermarrec <florent@enjoy-digital.fr>
 // SPDX-License-Identifier: BSD-2-Clause
 //
 // Glue between LiteEth's MAC (ETHMAC slot CSRs + ETHMAC_RX/TX SRAM

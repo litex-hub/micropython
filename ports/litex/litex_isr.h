@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
+// Copyright (c) 2026 Florent Kermarrec <florent@enjoy-digital.fr>
 // License: BSD-2-Clause
 //
 // C-level glue between LiteX's isr() entry point and the Python-side

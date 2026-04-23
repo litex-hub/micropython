@@ -9,7 +9,7 @@
 # gateway, this also validates the round-trip via a UDP send (best-
 # effort; a missing gateway just shows up as "no reply" and we move on).
 #
-# Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
+# Copyright (c) 2026 Florent Kermarrec <florent@enjoy-digital.fr>
 # SPDX-License-Identifier: BSD-2-Clause
 
 import network

@@ -1,5 +1,5 @@
 // This file is Copyright (c) 2021 Victor Suarez Rovere <suarezvictor@gmail.com>
-// This file is Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
+// This file is Copyright (c) 2026 Florent Kermarrec <florent@enjoy-digital.fr>
 // License: BSD-2-Clause
 //
 // Non-inline HAL functions for the LiteX port. Inline bits

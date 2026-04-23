@@ -15,7 +15,7 @@
 #
 # Designed for: ports/litex/tools/run_hw.py test/test_hw_arty_sdcard.py
 #
-# Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
+# Copyright (c) 2026 Florent Kermarrec <florent@enjoy-digital.fr>
 # SPDX-License-Identifier: BSD-2-Clause
 
 import os

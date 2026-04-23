@@ -1,6 +1,6 @@
 // This file is Copyright (c) 2017-2021 Fupy/LiteX-MicroPython Developers
 // Copyright (C) 2021-2022 Victor Suarez Rovere <suarezvictor@gmail.com>
-// Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
+// Copyright (c) 2026 Florent Kermarrec <florent@enjoy-digital.fr>
 // License: BSD-2-Clause
 
 #include <string.h>

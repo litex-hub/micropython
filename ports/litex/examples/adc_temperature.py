@@ -11,7 +11,7 @@
 # vccint / vccaux / vccbram are scaled the same way (raw / 4096) but in
 # units of "3 V full scale", so volts = raw * 3 / 4096.
 #
-# Copyright (c) 2026 Florent Kermarrec <f.kermarrec@gmail.com>
+# Copyright (c) 2026 Florent Kermarrec <florent@enjoy-digital.fr>
 # SPDX-License-Identifier: BSD-2-Clause
 
 import time
