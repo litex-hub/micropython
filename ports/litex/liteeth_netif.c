@@ -187,7 +187,7 @@ int liteeth_netif_init(struct netif *netif, const uint8_t *mac_addr) {
     // 0.0.0.0 / 0 — DHCP or static IP arrives via netif_set_ipaddr later.
     ip_addr_t ip = { 0 }, mask = { 0 }, gw = { 0 };
     if (netif_add(netif, &ip, &mask, &gw, NULL,
-            liteeth_netif_init_cb, ethernet_input) == NULL) {
+        liteeth_netif_init_cb, ethernet_input) == NULL) {
         return -1;
     }
     netif_set_default(netif);

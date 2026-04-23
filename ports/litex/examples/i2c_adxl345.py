@@ -5,7 +5,7 @@
 # Copyright (c) 2021 Victor Suarez Rovere <suarezvictor@gmail.com>
 # SPDX-License-Identifier: BSD-2-Clause
 
-import machine as machine
+import machine
 import ustruct as struct
 import math
 import litex

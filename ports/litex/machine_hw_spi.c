@@ -58,7 +58,7 @@
 #else
 extern const mp_obj_type_t machine_hw_spi_type; // forward declaration
 #ifdef CSR_SPI_BASE
-// rename methdos: TODO: better, define a SDK module
+// rename methods: TODO: better, define a SDK module
 #define spi0_cs_write spi_cs_write
 #define spi0_cs_read spi_cs_read
 #define spi0_control_write spi_control_write
@@ -146,7 +146,7 @@ static uint8_t spi_xfer(uint8_t byte) {
     return spi0_miso_read();
 }
 
-// all following functions are not platform depenent
+// all following functions are not platform dependent
 static void spi_write_bytes(const uint8_t *buf, size_t n) {
     size_t i;
     for (i = 0; i < n; i++) {

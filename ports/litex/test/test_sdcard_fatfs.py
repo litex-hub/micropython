@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: BSD-2-Clause
 
-import os as os
+import os
 from machine import SDCard
 
 # Open SDCard.

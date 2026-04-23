@@ -477,7 +477,7 @@ static mp_obj_t machine_sdcard_ioctl(mp_obj_t self_in, mp_obj_t cmd_in, mp_obj_t
             }
             return MP_OBJ_NEW_SMALL_INT(self->card.csd.capacity);
         #else
-            // this is called at disk_ioctl with paramenter GET_SECTOR_COUNT in vfs_fat_diskio.c
+            // this is called at disk_ioctl with parameter GET_SECTOR_COUNT in vfs_fat_diskio.c
             return MP_OBJ_NEW_SMALL_INT(sdmmc_card_num_blocks());
         #endif
 
@@ -557,7 +557,7 @@ const mp_obj_base_t machine_sdcard_obj = {&machine_sdcard_type};
 
 // Micropthon's FAT architecture:
 // extmod/vfs_fat_diskio.c implements disk_read that calls mp_vfs_blockdev_read (extmod/vfs_blockdev.c)
-// then calls funtion pointer in readblocks[2]=sdcard_read_blocks (native version)
+// then calls function pointer in readblocks[2]=sdcard_read_blocks (native version)
 // or machine_sdcard_readblocks through machine_sdcard_readblocks_obj (python's version)
 //
 // file_open in extmod/vfs_fat_file.c calls f_open (implemented in ff.c) that as defined by elchan's library, expect a disk_read implementation
