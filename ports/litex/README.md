@@ -24,28 +24,46 @@ Tracks **upstream MicroPython 1.28** (latest stable).
 Highlights
 ----------
 
-- 🐍 **Familiar `machine` module** — `Pin`, `SPI`/`SoftSPI`,
-  `I2C`/`SoftI2C`, `PWM`, `Timer`, `UART`, `SDCard`, `ADC` (XADC /
-  SystemMonitor), `mem8/16/32`. Peripheral classes auto-appear based
-  on which cores the SoC was built with — no manual config.
-- ⚡ **`litex` module** for what's unique to LiteX SoCs: build metadata,
-  raw MMIO, by-name CSR access via a build-time lookup table,
-  `EventManager` for per-peripheral event registers (with IRQ → Python
-  callback dispatch via `mp_sched_schedule`), and helpers for `LED`,
-  `DMAWriter`/`DMAReader`, and `Video` (zero-copy `framebuf.FrameBuffer`).
-- 🌐 **Networking** — `network.LAN(0)` over LiteEth + lwIP. DHCP, DNS,
-  TCP/UDP sockets, all the standard MicroPython network API.
-- 💾 **FatFS over SD** — `machine.SDCard()` + `os.mount('/sd')` round
-  trips through FatFs and the LiteSDCard core (4-bit SDIO + DMA).
-- 🔁 **Same Python, every board** — your `.py` files are portable
-  across all 150+ LiteX-supported boards: class gating on
-  `CSR_<CORE>_BASE` means a script written against `machine.UART` works
-  on any SoC that includes a UART core. (The firmware binary itself is
-  rebuilt per SoC since CSR addresses come from generated headers — one
-  `make -C ports/litex BUILD_DIRECTORY=…` per SoC variant.)
-- 🧪 **Tested in CI under Verilator-simulated SoCs**, plus an
-  end-to-end hardware test loop on the Digilent Arty A7 — see the
-  "Hardware testing" section below.
+- 🐍 **Familiar `machine` module**
+
+  `Pin`, `SPI`/`SoftSPI`, `I2C`/`SoftI2C`, `PWM`, `Timer`, `UART`,
+  `SDCard`, `ADC` (XADC / SystemMonitor), `mem8/16/32`.
+
+  Peripheral classes auto-appear based on which cores the SoC was
+  built with — no manual config.
+
+- ⚡ **`litex` module** — what's unique to LiteX SoCs
+
+  Build metadata, raw MMIO, by-name CSR access via a build-time
+  lookup table, `EventManager` for per-peripheral event registers
+  (with IRQ → Python callback dispatch via `mp_sched_schedule`).
+
+  Plus helpers for `LED`, `DMAWriter`/`DMAReader`, and `Video`
+  (zero-copy `framebuf.FrameBuffer`).
+
+- 🌐 **Networking**
+
+  `network.LAN(0)` over LiteEth + lwIP. DHCP, DNS, TCP/UDP sockets —
+  all the standard MicroPython network API.
+
+- 💾 **FatFS over SD**
+
+  `machine.SDCard()` + `os.mount('/sd')` round-trips through FatFs
+  and the LiteSDCard core (4-bit SDIO + DMA).
+
+- 🔁 **Same Python, every board**
+
+  Your `.py` files are portable across all 150+ LiteX-supported boards:
+  class gating on `CSR_<CORE>_BASE` means a script written against
+  `machine.UART` works on any SoC that includes a UART core.
+
+  *Firmware* is rebuilt per SoC (CSR addresses come from generated
+  headers) — one `make` per SoC variant.
+
+- 🧪 **Tested in CI** under Verilator-simulated SoCs
+
+  Plus an end-to-end hardware test loop on the Digilent Arty A7 —
+  see the "Hardware testing" section below.
 
 Setting up LiteX
 ----------------
