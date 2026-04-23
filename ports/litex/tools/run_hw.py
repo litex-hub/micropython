@@ -191,10 +191,68 @@ def raw_repl_send(s, script, exec_timeout, log):
     s.write(b"\r\x01")
     if read_until(s, b"raw REPL; CTRL-B to exit\r\n>", timeout=5, log=log) is None:
         return None, "did not enter raw REPL"
-    s.write(script.encode() if isinstance(script, str) else script)
-    s.write(b"\x04")
-    if read_until(s, b"OK", timeout=10, log=log) is None:
-        return None, "did not see OK after script paste"
+    payload = script.encode() if isinstance(script, str) else script
+    # Try raw-paste mode (MicroPython's windowed flow-control protocol —
+    # the host only sends as much as the device's allocated window, the
+    # device sends \x01 to grant another window's worth of credit). This
+    # is the only paste path that survives high-baud links (2 Mbps+)
+    # where the parser can't drain the UART byte-for-byte. Falls back to
+    # naive chunked write if the device doesn't speak it (older firmware).
+    s.write(b"\x05A\x01")
+    s.flush()
+    resp = s.read(2)
+    if log is not None and resp:
+        log.write(resp)
+    if resp == b"R\x01":
+        # Device speaks raw-paste. Read 2-byte window size, then push
+        # the script in chunks bounded by the running window, listening
+        # for \x01 (window credit) or \x04 (abrupt end) interleaved.
+        hdr = s.read(2)
+        if log is not None:
+            log.write(hdr)
+        if len(hdr) != 2:
+            return None, "raw-paste: short window header"
+        window_size = struct.unpack("<H", hdr)[0]
+        window_remain = window_size
+        i = 0
+        while i < len(payload):
+            while window_remain == 0 or s.in_waiting:
+                ack = s.read(1)
+                if log is not None and ack:
+                    log.write(ack)
+                if ack == b"\x01":
+                    window_remain += window_size
+                elif ack == b"\x04":
+                    s.write(b"\x04")
+                    s.flush()
+                    sent = i + (window_size - window_remain) if window_remain <= window_size else i
+                    return None, f"raw-paste: device ended early (after {sent}/{len(payload)} B)"
+                elif ack == b"":
+                    break  # short read; loop back to top to re-check
+                else:
+                    return None, "raw-paste: unexpected byte %r" % ack
+            chunk = payload[i:i + min(window_remain, len(payload) - i)]
+            s.write(chunk)
+            s.flush()
+            window_remain -= len(chunk)
+            i += len(chunk)
+        s.write(b"\x04")
+        s.flush()
+        # Device echoes \x04 as end-ack, then goes straight to stdout
+        # (no "OK" marker in raw-paste mode — that's only in friendly
+        # raw REPL). Drain past the end-ack so the stdout reader below
+        # starts at the script's first print().
+        if read_until(s, b"\x04", timeout=10, log=log) is None:
+            return None, "raw-paste: no end-ack"
+    else:
+        # Fallback: naive write + "OK" marker check. Safe at 115200,
+        # may drop bytes at higher baud where the parser can't keep up.
+        for i in range(0, len(payload), 256):
+            s.write(payload[i:i + 256])
+            s.flush()
+        s.write(b"\x04")
+        if read_until(s, b"OK", timeout=10, log=log) is None:
+            return None, "did not see OK after script paste"
     out = read_until(s, b"\x04", timeout=exec_timeout, log=log)
     if out is None:
         return None, "stdout EOT timeout"
@@ -215,7 +273,9 @@ def main():
         default=os.environ.get("LITEX_HW_PORT", "/dev/ttyUSB1"),
         help="MicroPython REPL serial device (default /dev/ttyUSB1).",
     )
-    parser.add_argument("--baudrate", type=int, default=2_000_000)
+    parser.add_argument("--baudrate", type=int, default=1_000_000)
+    parser.add_argument("--batch-frames", type=int, default=16,
+                        help="Number of SFL frames per write burst.")
     parser.add_argument(
         "--bitstream",
         default=None,
@@ -319,7 +379,8 @@ def main():
         s.flush()
         time.sleep(0.1)
         firmware_bytes = open(args.firmware, "rb").read()
-        if not upload_firmware(s, firmware_bytes, args.kernel_adr, log):
+        if not upload_firmware(s, firmware_bytes, args.kernel_adr, log,
+                               batch_frames=args.batch_frames):
             sys.exit("[run_hw] firmware upload failed")
         if read_until(s, b"MicroPython", timeout=30, log=log) is None:
             sys.exit("[run_hw] MicroPython REPL did not appear after upload")

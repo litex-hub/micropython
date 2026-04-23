@@ -191,6 +191,15 @@ static inline void mp_hal_delay_us_fast(mp_uint_t us) {
 
 #define MICROPY_HW_BOARD_NAME "LiteX SoC"
 
+// Cap the raw-paste buffer so the advertised credit (2x window =
+// MICROPY_REPL_STDIN_BUFFER_MAX bytes) fits in libbase's 128-byte
+// UART RX ring. Otherwise the host happily fills 256 bytes of credit
+// at high baud and the second half overflows the ring during any
+// brief parser pause (compile/GC) — surfaces as the device sending
+// \x04 mid-paste because the corrupted byte stream confuses the
+// raw-paste reader. 64 (→ 128 B credit) is the safe ceiling.
+#define MICROPY_REPL_STDIN_BUFFER_MAX (64)
+
 #ifdef __lm32__
 #define MICROPY_HW_MCU_NAME "LM32 CPU"
 #elif __or1k__
