@@ -71,8 +71,7 @@ def patched_module(sys_clk_freq_hz, skip_bios_boot, with_uart1):
         # cut a few more seconds of UART output. Together this drops
         # 5+ seconds of BIOS-time wait (= dozens of wall-clock seconds at
         # Verilator speeds) before MicroPython gets control.
-        for flag in ("BIOS_NO_PROMPT", "BIOS_NO_DELAYS",
-                     "BIOS_NO_BUILD_TIME", "BIOS_NO_CRC"):
+        for flag in ("BIOS_NO_PROMPT", "BIOS_NO_DELAYS", "BIOS_NO_BUILD_TIME", "BIOS_NO_CRC"):
             pattern = rf'#self\.add_config\("{flag}"\)'
             replacement = f'self.add_config("{flag}")'
             src, n = re.subn(pattern, replacement, src, count=1)
@@ -91,14 +90,14 @@ def patched_module(sys_clk_freq_hz, skip_bios_boot, with_uart1):
         # acked; reads block (rxempty=1 always) which is exactly what
         # machine.UART.read_nb / .any() should report.
         injection = (
-            'SoCCore.__init__(self, platform, clk_freq=sys_clk_freq, '
+            "SoCCore.__init__(self, platform, clk_freq=sys_clk_freq, "
             'ident = "LiteX Simulation", **kwargs)\n        '
             'self.add_uart(name="uart1", uart_name="stub")'
         )
         original = (
-            'SoCCore.__init__(self, platform, clk_freq=sys_clk_freq,\n'
+            "SoCCore.__init__(self, platform, clk_freq=sys_clk_freq,\n"
             '            ident = "LiteX Simulation",\n'
-            '            **kwargs)'
+            "            **kwargs)"
         )
         src, n = re.subn(re.escape(original), injection, src, count=1)
         if n == 0:
@@ -120,13 +119,16 @@ def main():
         add_help=False,  # let litex_sim print its own help
         description=__doc__.splitlines()[1] if __doc__ else "",
     )
-    parser.add_argument("--sys-clk-freq", type=lambda s: int(float(s)),
-                        default=100_000)
+    parser.add_argument("--sys-clk-freq", type=lambda s: int(float(s)), default=100_000)
     parser.add_argument("--skip-bios-boot", action="store_true", default=False)
-    parser.add_argument("--with-uart1", action="store_true", default=False,
-                        help="Add a second 'stub' UART so machine.UART(1) "
-                             "exists in sim. CSR_UART1_BASE and "
-                             "UART1_INTERRUPT will be generated.")
+    parser.add_argument(
+        "--with-uart1",
+        action="store_true",
+        default=False,
+        help="Add a second 'stub' UART so machine.UART(1) "
+        "exists in sim. CSR_UART1_BASE and "
+        "UART1_INTERRUPT will be generated.",
+    )
     args, rest = parser.parse_known_args()
 
     mod = patched_module(args.sys_clk_freq, args.skip_bios_boot, args.with_uart1)

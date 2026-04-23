@@ -7,4 +7,4 @@
 # - through pyboard: python3 ../../../tools/pyboard.py -d /dev/ttyUSBX test_xy.py
 # - copied to board flash storage and configured to be run at boot.
 
-print("Hello World from Micropython running on your LiteX SoC!")
+print("Hello World from MicroPython running on your LiteX SoC!")
