@@ -9,6 +9,9 @@
 # Requires a LiteX SoC generated with --with-video-framebuffer (matching
 # the resolution the script opens below).
 #
+# Derived from test/test_video.py by Victor Suarez Rovere.
+#
+# Copyright (c) 2021 Victor Suarez Rovere <suarezvictor@gmail.com>
 # Copyright (c) 2026 Florent Kermarrec <florent@enjoy-digital.fr>
 # SPDX-License-Identifier: BSD-2-Clause
 
